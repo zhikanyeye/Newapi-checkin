@@ -298,6 +298,66 @@
             color: rgba(255, 255, 255, 0.9);
         }
 
+        .import-section {
+            margin-top: 20px;
+            padding: 24px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 16px;
+            animation: importIn 0.4s ease-out;
+        }
+
+        @keyframes importIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .import-section h3 {
+            color: #a78bfa;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .import-section h3::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 18px;
+            background: #6366f1;
+            border-radius: 2px;
+        }
+
+        .import-textarea {
+            width: 100%;
+            min-height: 160px;
+            padding: 14px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            background: rgba(30, 30, 50, 0.6);
+            color: rgba(255, 255, 255, 0.9);
+            outline: none;
+            transition: all 0.3s;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        .import-textarea::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+
+        .import-textarea:focus {
+            border-color: #6366f1;
+            background: rgba(30, 30, 50, 0.8);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
         .btn-sm {
             padding: 8px 16px;
             font-size: 13px;
@@ -509,7 +569,27 @@
             <div class="btn-group" style="margin-top: 12px;">
                 <button class="btn btn-secondary" onclick="saveToLocal()">💾 保存到本地</button>
                 <button class="btn btn-secondary" onclick="loadFromLocal()">📂 从本地加载</button>
+                <button class="btn btn-secondary" onclick="toggleImport()" style="color: #a78bfa; border-color: rgba(167,139,250,0.3);">📋 导入 JSON</button>
                 <button class="btn btn-secondary" onclick="clearLocal()" style="color: #f56565; border-color: rgba(245,101,101,0.3);">🗑️ 清除本地数据</button>
+            </div>
+
+            <div id="import-section" class="import-section" style="display: none;">
+                <h3>📋 导入 JSON 配置</h3>
+                <p style="color: rgba(255,255,255,0.6); font-size: 14px; margin-bottom: 16px;">粘贴已有的 JSON 配置，一键导入并填充表单</p>
+                <textarea id="import-json" class="import-textarea" placeholder='粘贴 JSON 配置，例如：
+[
+  {
+    "url": "https://api.example.com",
+    "session": "MTc2NzQxMzYzM3...",
+    "user_id": "123",
+    "name": "主力站",
+    "cf_clearance": "xxsCgaPMM..."
+  }
+]'></textarea>
+                <div class="btn-group" style="margin-top: 12px;">
+                    <button class="btn btn-primary btn-sm" onclick="importJSON()">✅ 确认导入</button>
+                    <button class="btn btn-secondary btn-sm" onclick="toggleImport()">取消</button>
+                </div>
             </div>
 
             <div class="tips" style="margin-top: 24px;">
@@ -845,6 +925,60 @@
                 alert(`✅ 成功加载 ${accounts.length} 个账号配置！`);
             } catch (e) {
                 alert('❌ 加载失败：' + e.message);
+            }
+        }
+
+        function toggleImport() {
+            const section = document.getElementById('import-section');
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                document.getElementById('import-json').focus();
+            } else {
+                section.style.display = 'none';
+                document.getElementById('import-json').value = '';
+            }
+        }
+
+        function importJSON() {
+            const raw = document.getElementById('import-json').value.trim();
+            if (!raw) {
+                alert('⚠️ 请先粘贴 JSON 配置');
+                return;
+            }
+
+            try {
+                const accounts = JSON.parse(raw);
+
+                if (!Array.isArray(accounts) || accounts.length === 0) {
+                    alert('⚠️ JSON 格式错误：应为账号数组（[]）');
+                    return;
+                }
+
+                for (let i = 0; i < accounts.length; i++) {
+                    const acc = accounts[i];
+                    if (!acc.url || !acc.session) {
+                        alert(`⚠️ 第 ${i + 1} 个账号缺少 url 或 session 字段`);
+                        return;
+                    }
+                }
+
+                document.getElementById('accounts-container').innerHTML = '';
+                accountCount = 0;
+
+                accounts.forEach((acc) => {
+                    addAccount();
+                    const id = accountCount;
+                    document.getElementById(`url-${id}`).value = acc.url || '';
+                    document.getElementById(`session-${id}`).value = acc.session || '';
+                    document.getElementById(`userid-${id}`).value = acc.user_id || acc.userId || '';
+                    document.getElementById(`cfclearance-${id}`).value = acc.cf_clearance || acc.cfClearance || '';
+                    document.getElementById(`name-${id}`).value = acc.name || '';
+                });
+
+                toggleImport();
+                alert(`✅ 成功导入 ${accounts.length} 个账号配置！`);
+            } catch (e) {
+                alert('❌ JSON 解析失败：' + e.message + '\n\n请检查格式是否正确');
             }
         }
 
