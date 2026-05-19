@@ -471,6 +471,120 @@
             padding: 4px 0 0;
         }
 
+        .cloud-section {
+            margin-top: 20px;
+            padding: 24px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(52, 211, 153, 0.2);
+            border-radius: 16px;
+            animation: cloudIn 0.4s ease-out;
+        }
+
+        @keyframes cloudIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .cloud-section h3 {
+            color: #34d399;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cloud-section h3::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 18px;
+            background: #059669;
+            border-radius: 2px;
+        }
+
+        .cloud-presets {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .cloud-preset-btn {
+            padding: 8px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .cloud-preset-btn:hover {
+            background: rgba(52, 211, 153, 0.15);
+            border-color: rgba(52, 211, 153, 0.3);
+            color: #34d399;
+        }
+
+        .cloud-preset-btn.active {
+            background: rgba(52, 211, 153, 0.2);
+            border-color: rgba(52, 211, 153, 0.4);
+            color: #34d399;
+        }
+
+        .cloud-fields {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+        }
+
+        .cloud-fields .form-group {
+            margin-bottom: 0;
+        }
+
+        .cloud-path-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .cloud-path-row input {
+            flex: 1;
+        }
+
+        .cloud-status {
+            margin-top: 12px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .cloud-status.success {
+            display: block;
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.2);
+            color: #34d399;
+        }
+
+        .cloud-status.error {
+            display: block;
+            background: rgba(245, 101, 101, 0.1);
+            border: 1px solid rgba(245, 101, 101, 0.2);
+            color: #f56565;
+        }
+
+        .cloud-status.info {
+            display: block;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            color: #a78bfa;
+        }
+
         .import-section {
             margin-top: 20px;
             padding: 24px;
@@ -728,8 +842,81 @@
             <div class="btn-group" style="margin-top: 12px;">
                 <button class="btn btn-secondary" onclick="saveToLocal()">💾 保存到本地</button>
                 <button class="btn btn-secondary" onclick="loadFromLocal()">📂 从本地加载</button>
+                <button class="btn btn-secondary" onclick="toggleCloudSync()" style="color: #34d399; border-color: rgba(52,211,153,0.3);">☁️ 云端同步</button>
                 <button class="btn btn-secondary" onclick="toggleImport()" style="color: #a78bfa; border-color: rgba(167,139,250,0.3);">📋 导入 JSON</button>
                 <button class="btn btn-secondary" onclick="clearLocal()" style="color: #f56565; border-color: rgba(245,101,101,0.3);">🗑️ 清除本地数据</button>
+            </div>
+
+            <div id="cloud-section" class="cloud-section" style="display: none;">
+                <h3>☁️ 云端同步</h3>
+                <p style="color: rgba(255,255,255,0.6); font-size: 14px; margin-bottom: 16px;">将配置保存到你的云盘/NAS，GitHub Actions 签到脚本可直接从云端拉取配置，改配置无需推代码</p>
+
+                <div class="cloud-presets">
+                    <button class="cloud-preset-btn" onclick="applyCloudPreset('jianguoyun')" id="preset-jianguoyun">🥜 坚果云</button>
+                    <button class="cloud-preset-btn" onclick="applyCloudPreset('synology')" id="preset-synology">🏠 群晖 NAS</button>
+                    <button class="cloud-preset-btn" onclick="applyCloudPreset('nextcloud')" id="preset-nextcloud">☁️ NextCloud</button>
+                    <button class="cloud-preset-btn" onclick="applyCloudPreset('custom')" id="preset-custom">⚙️ 自定义</button>
+                </div>
+
+                <div class="cloud-fields">
+                    <div class="form-group">
+                        <label>WebDAV 地址 <span class="required">*</span></label>
+                        <input type="text" id="cloud-url" placeholder="https://dav.jianguoyun.com/dav/">
+                        <small>WebDAV 服务地址，末尾需包含文件路径</small>
+                    </div>
+                    <div class="form-group">
+                        <label>认证方式</label>
+                        <select id="cloud-auth-type" style="width:100%;padding:12px 16px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;font-size:14px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.9);outline:none;">
+                            <option value="basic" style="background:#1a1a2e;">Basic Auth（用户名+密码）</option>
+                            <option value="token" style="background:#1a1a2e;">Token（访问令牌）</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="cloud-fields" id="cloud-basic-auth-fields" style="margin-top: 16px;">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" id="cloud-username" placeholder="坚果云：邮箱；群晖：系统用户名">
+                    </div>
+                    <div class="form-group">
+                        <label>密码 / 应用密码</label>
+                        <input type="password" id="cloud-password" placeholder="坚果云需使用应用专用密码">
+                        <small>坚果云请在账户设置中创建「应用密码」</small>
+                    </div>
+                </div>
+
+                <div class="form-group" id="cloud-token-field" style="margin-top: 16px; display: none;">
+                    <label>访问令牌</label>
+                    <input type="password" id="cloud-token" placeholder="WebDAV 访问令牌">
+                </div>
+
+                <div class="cloud-path-row">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>文件名</label>
+                        <input type="text" id="cloud-filename" value="newapi-config.json" placeholder="newapi-config.json">
+                        <small>云盘上的配置文件名（JSON 格式）</small>
+                    </div>
+                </div>
+
+                <div id="cloud-status" class="cloud-status"></div>
+
+                <div class="btn-group" style="margin-top: 16px;">
+                    <button class="btn btn-success btn-sm" onclick="saveToCloud()">☁️ 保存到云端</button>
+                    <button class="btn btn-secondary btn-sm" onclick="loadFromCloud()">📥 从云端加载</button>
+                    <button class="btn btn-secondary btn-sm" onclick="testCloudConnection()">🔗 测试连接</button>
+                    <button class="btn btn-secondary btn-sm" onclick="toggleCloudSync()">取消</button>
+                </div>
+
+                <div class="tips" style="margin-top: 16px;">
+                    <h4>💡 云端同步说明：</h4>
+                    <ul>
+                        <li><strong>坚果云：</strong>使用 WebDAV 协议，需在账户设置中创建「应用专用密码」（不是登录密码）</li>
+                        <li><strong>群晖 NAS：</strong>需启用 WebDAV 服务（端口 5005/5006），确保 NAS 可从外网访问</li>
+                        <li><strong>NextCloud：</strong>地址格式为 <code>https://域名/remote.php/dav/files/用户名/</code></li>
+                        <li><strong>GitHub Actions：</strong>保存后，将生成的 <code>CONFIG_URL</code> 和 <code>CONFIG_AUTH</code> 添加到仓库 Secrets</li>
+                        <li><strong>CORS 限制：</strong>浏览器直接访问可能受 CORS 限制，如遇跨域错误请参考下方解决方案</li>
+                    </ul>
+                </div>
             </div>
 
             <div id="import-section" class="import-section" style="display: none;">
@@ -1210,6 +1397,413 @@
                     location.reload();
                 } catch (e) { alert('❌ 清除失败：' + e.message); }
             }
+        }
+
+        const CLOUD_STORAGE_KEY = 'newapi_checkin_cloud_config';
+
+        function toggleCloudSync() {
+            const section = document.getElementById('cloud-section');
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                loadCloudConfigFromLocal();
+                document.getElementById('cloud-section').scrollIntoView({ behavior: 'smooth' });
+            } else {
+                section.style.display = 'none';
+            }
+        }
+
+        function applyCloudPreset(preset) {
+            document.querySelectorAll('.cloud-preset-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`preset-${preset}`).classList.add('active');
+
+            const urlInput = document.getElementById('cloud-url');
+            const usernameInput = document.getElementById('cloud-username');
+            const passwordInput = document.getElementById('cloud-password');
+            const filenameInput = document.getElementById('cloud-filename');
+
+            switch (preset) {
+                case 'jianguoyun':
+                    urlInput.value = 'https://dav.jianguoyun.com/dav/';
+                    usernameInput.placeholder = '坚果云注册邮箱';
+                    passwordInput.placeholder = '应用专用密码（非登录密码）';
+                    break;
+                case 'synology':
+                    urlInput.value = 'https://';
+                    usernameInput.placeholder = '群晖系统用户名';
+                    passwordInput.placeholder = '群晖用户密码';
+                    break;
+                case 'nextcloud':
+                    urlInput.value = 'https:///remote.php/dav/files//';
+                    usernameInput.placeholder = 'NextCloud 用户名';
+                    passwordInput.placeholder = 'NextCloud 密码或应用令牌';
+                    break;
+                case 'custom':
+                    urlInput.value = '';
+                    usernameInput.placeholder = '用户名';
+                    passwordInput.placeholder = '密码 / 令牌';
+                    break;
+            }
+            saveCloudConfigToLocal();
+        }
+
+        document.getElementById('cloud-auth-type').addEventListener('change', function() {
+            const basicFields = document.getElementById('cloud-basic-auth-fields');
+            const tokenField = document.getElementById('cloud-token-field');
+            if (this.value === 'basic') {
+                basicFields.style.display = 'grid';
+                tokenField.style.display = 'none';
+            } else {
+                basicFields.style.display = 'none';
+                tokenField.style.display = 'block';
+            }
+        });
+
+        function saveCloudConfigToLocal() {
+            const config = {
+                url: document.getElementById('cloud-url').value,
+                authType: document.getElementById('cloud-auth-type').value,
+                username: document.getElementById('cloud-username').value,
+                password: document.getElementById('cloud-password').value,
+                token: document.getElementById('cloud-token').value,
+                filename: document.getElementById('cloud-filename').value,
+                preset: document.querySelector('.cloud-preset-btn.active')?.id?.replace('preset-', '') || ''
+            };
+            localStorage.setItem(CLOUD_STORAGE_KEY, JSON.stringify(config));
+        }
+
+        function loadCloudConfigFromLocal() {
+            const saved = localStorage.getItem(CLOUD_STORAGE_KEY);
+            if (!saved) return;
+
+            try {
+                const config = JSON.parse(saved);
+                document.getElementById('cloud-url').value = config.url || '';
+                document.getElementById('cloud-auth-type').value = config.authType || 'basic';
+                document.getElementById('cloud-username').value = config.username || '';
+                document.getElementById('cloud-password').value = config.password || '';
+                document.getElementById('cloud-token').value = config.token || '';
+                document.getElementById('cloud-filename').value = config.filename || 'newapi-config.json';
+
+                if (config.authType === 'token') {
+                    document.getElementById('cloud-basic-auth-fields').style.display = 'none';
+                    document.getElementById('cloud-token-field').style.display = 'block';
+                }
+
+                if (config.preset) {
+                    document.querySelectorAll('.cloud-preset-btn').forEach(b => b.classList.remove('active'));
+                    const presetBtn = document.getElementById(`preset-${config.preset}`);
+                    if (presetBtn) presetBtn.classList.add('active');
+                }
+            } catch (e) {}
+        }
+
+        function buildCloudUrl() {
+            let baseUrl = document.getElementById('cloud-url').value.trim();
+            const filename = document.getElementById('cloud-filename').value.trim() || 'newapi-config.json';
+
+            if (!baseUrl) return null;
+
+            if (!baseUrl.endsWith('/')) baseUrl += '/';
+
+            const preset = document.querySelector('.cloud-preset-btn.active')?.id?.replace('preset-', '') || '';
+
+            if (preset === 'jianguoyun') {
+                const username = document.getElementById('cloud-username').value.trim();
+                if (username) {
+                    baseUrl += `${username}/${filename}`;
+                } else {
+                    baseUrl += filename;
+                }
+            } else if (preset === 'nextcloud') {
+                if (!baseUrl.includes('/files/')) {
+                    const username = document.getElementById('cloud-username').value.trim();
+                    baseUrl += `files/${username || 'USERNAME'}/${filename}`;
+                } else {
+                    if (!baseUrl.endsWith(filename)) {
+                        baseUrl = baseUrl.replace(/\/$/, '') + '/' + filename;
+                    }
+                }
+            } else {
+                baseUrl += filename;
+            }
+
+            return baseUrl;
+        }
+
+        function buildCloudHeaders() {
+            const authType = document.getElementById('cloud-auth-type').value;
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+
+            if (authType === 'basic') {
+                const username = document.getElementById('cloud-username').value.trim();
+                const password = document.getElementById('cloud-password').value.trim();
+                if (!username || !password) {
+                    showCloudStatus('error', '请填写用户名和密码');
+                    return null;
+                }
+                headers['Authorization'] = 'Basic ' + btoa(username + ':' + password);
+            } else {
+                const token = document.getElementById('cloud-token').value.trim();
+                if (!token) {
+                    showCloudStatus('error', '请填写访问令牌');
+                    return null;
+                }
+                headers['Authorization'] = 'Bearer ' + token;
+            }
+
+            return headers;
+        }
+
+        function showCloudStatus(type, message) {
+            const status = document.getElementById('cloud-status');
+            status.className = 'cloud-status ' + type;
+            status.textContent = message;
+            status.style.display = 'block';
+        }
+
+        function hideCloudStatus() {
+            const status = document.getElementById('cloud-status');
+            status.style.display = 'none';
+        }
+
+        function generateAccountsJSON() {
+            const accounts = [];
+            const siteCards = document.querySelectorAll('.site-card');
+
+            siteCards.forEach(card => {
+                const siteId = card.id.split('-')[1];
+                const url = document.getElementById(`site-url-${siteId}`).value.trim();
+                const cfClearance = document.getElementById(`site-cfclearance-${siteId}`).value.trim();
+
+                if (!url) return;
+                const fullUrl = url.startsWith('http') ? url : 'https://' + url;
+
+                const accItems = card.querySelectorAll('.account-item');
+                accItems.forEach(item => {
+                    const parts = item.id.split('-');
+                    const sId = parts[1];
+                    const aId = parts[2];
+                    const session = document.getElementById(`acc-session-${sId}-${aId}`).value.trim();
+                    const userId = document.getElementById(`acc-userid-${sId}-${aId}`).value.trim();
+                    const name = document.getElementById(`acc-name-${sId}-${aId}`).value.trim();
+
+                    if (!session) return;
+
+                    const account = {
+                        url: fullUrl,
+                        session: session,
+                        user_id: userId,
+                        name: name || `站点${siteId}-账号${aId}`
+                    };
+
+                    if (cfClearance) {
+                        account.cf_clearance = cfClearance;
+                    }
+
+                    accounts.push(account);
+                });
+            });
+
+            return accounts;
+        }
+
+        async function saveToCloud() {
+            const url = buildCloudUrl();
+            const headers = buildCloudHeaders();
+
+            if (!url) {
+                showCloudStatus('error', '请填写 WebDAV 地址');
+                return;
+            }
+            if (!headers) return;
+
+            const accounts = generateAccountsJSON();
+            if (accounts.length === 0) {
+                showCloudStatus('error', '没有可保存的配置，请先填写账号信息');
+                return;
+            }
+
+            const dingtalk = {
+                webhook: '',
+                secret: ''
+            };
+
+            const configPayload = {
+                accounts: accounts,
+                dingtalk: dingtalk,
+                updated_at: new Date().toISOString()
+            };
+
+            showCloudStatus('info', '正在保存到云端...');
+
+            try {
+                const resp = await fetch(url, {
+                    method: 'PUT',
+                    headers: headers,
+                    body: JSON.stringify(configPayload, null, 2)
+                });
+
+                if (resp.ok || resp.status === 201 || resp.status === 204) {
+                    showCloudStatus('success', `✅ 配置已保存到云端！共 ${accounts.length} 个账号`);
+                    saveCloudConfigToLocal();
+
+                    const configUrl = url;
+                    const authType = document.getElementById('cloud-auth-type').value;
+                    const username = document.getElementById('cloud-username').value.trim();
+                    const password = document.getElementById('cloud-password').value.trim();
+                    const token = document.getElementById('cloud-token').value.trim();
+                    let authStr = '';
+                    if (authType === 'basic') {
+                        authStr = `${username}:${password}`;
+                    } else {
+                        authStr = `token:${token}`;
+                    }
+
+                    generateConfig();
+                    updateCloudUsageTip(configUrl, authStr);
+                } else if (resp.status === 401) {
+                    showCloudStatus('error', '❌ 认证失败：用户名或密码不正确');
+                } else if (resp.status === 404) {
+                    showCloudStatus('error', '❌ 路径不存在：请检查 WebDAV 地址和文件路径');
+                } else if (resp.status === 403) {
+                    showCloudStatus('error', '❌ 权限不足：无法写入该路径');
+                } else {
+                    showCloudStatus('error', `❌ 保存失败：HTTP ${resp.status}`);
+                }
+            } catch (e) {
+                if (e.name === 'TypeError' && e.message.includes('Failed to fetch')) {
+                    showCloudStatus('error', '❌ 网络请求失败：可能是 CORS 跨域限制，或地址不可达\n\n解决方案：\n1. 群晖/NextCloud：在服务端配置 CORS 允许头\n2. 使用本地 HTML 文件（file:// 协议）打开本页面\n3. 坚果云：确保使用 HTTPS 地址');
+                } else {
+                    showCloudStatus('error', `❌ 保存失败：${e.message}`);
+                }
+            }
+        }
+
+        async function loadFromCloud() {
+            const url = buildCloudUrl();
+            const headers = buildCloudHeaders();
+
+            if (!url) {
+                showCloudStatus('error', '请填写 WebDAV 地址');
+                return;
+            }
+            if (!headers) return;
+
+            showCloudStatus('info', '正在从云端加载...');
+
+            try {
+                const getHeaders = { ...headers };
+                delete getHeaders['Content-Type'];
+
+                const resp = await fetch(url, {
+                    method: 'GET',
+                    headers: getHeaders
+                });
+
+                if (!resp.ok) {
+                    if (resp.status === 401) {
+                        showCloudStatus('error', '❌ 认证失败：用户名或密码不正确');
+                    } else if (resp.status === 404) {
+                        showCloudStatus('error', '❌ 文件不存在：云端尚未保存配置');
+                    } else {
+                        showCloudStatus('error', `❌ 加载失败：HTTP ${resp.status}`);
+                    }
+                    return;
+                }
+
+                const text = await resp.text();
+                const data = JSON.parse(text);
+
+                let accounts;
+                if (Array.isArray(data)) {
+                    accounts = data;
+                } else if (data.accounts && Array.isArray(data.accounts)) {
+                    accounts = data.accounts;
+                } else {
+                    showCloudStatus('error', '❌ 配置格式错误：无法解析账号列表');
+                    return;
+                }
+
+                loadFlatData(accounts);
+                showCloudStatus('success', `✅ 成功从云端加载 ${accounts.length} 个账号配置！`);
+                saveCloudConfigToLocal();
+            } catch (e) {
+                if (e instanceof SyntaxError) {
+                    showCloudStatus('error', '❌ 配置文件不是有效的 JSON 格式');
+                } else if (e.name === 'TypeError' && e.message.includes('Failed to fetch')) {
+                    showCloudStatus('error', '❌ 网络请求失败：可能是 CORS 跨域限制\n\n解决方案：\n1. 使用 file:// 协议打开本页面\n2. 在服务端配置 CORS 允许头');
+                } else {
+                    showCloudStatus('error', `❌ 加载失败：${e.message}`);
+                }
+            }
+        }
+
+        async function testCloudConnection() {
+            let url = document.getElementById('cloud-url').value.trim();
+            const headers = buildCloudHeaders();
+
+            if (!url) {
+                showCloudStatus('error', '请填写 WebDAV 地址');
+                return;
+            }
+            if (!headers) return;
+
+            if (!url.endsWith('/')) url += '/';
+
+            showCloudStatus('info', '正在测试连接...');
+
+            try {
+                const testHeaders = { ...headers };
+                delete testHeaders['Content-Type'];
+
+                const resp = await fetch(url, {
+                    method: 'PROPFIND',
+                    headers: {
+                        ...testHeaders,
+                        'Depth': '0'
+                    }
+                });
+
+                if (resp.ok || resp.status === 207) {
+                    showCloudStatus('success', '✅ 连接成功！WebDAV 服务可正常访问');
+                } else if (resp.status === 401) {
+                    showCloudStatus('error', '❌ 连接失败：认证错误（用户名/密码不正确）');
+                } else if (resp.status === 404) {
+                    showCloudStatus('success', '⚠️ 地址可达但路径不存在（首次保存时会自动创建文件）');
+                } else {
+                    showCloudStatus('error', `❌ 连接测试返回 HTTP ${resp.status}`);
+                }
+            } catch (e) {
+                if (e.name === 'TypeError' && e.message.includes('Failed to fetch')) {
+                    showCloudStatus('error', '❌ 连接失败：可能是 CORS 跨域限制或地址不可达\n\n提示：可尝试用 file:// 协议打开本页面，或在服务端配置 CORS');
+                } else {
+                    showCloudStatus('error', `❌ 连接测试失败：${e.message}`);
+                }
+            }
+        }
+
+        function updateCloudUsageTip(configUrl, authStr) {
+            const resultTips = document.querySelector('#result .tips');
+            if (!resultTips) return;
+
+            const existingCloudTip = resultTips.querySelector('.cloud-usage-tip');
+            if (existingCloudTip) existingCloudTip.remove();
+
+            const cloudTip = document.createElement('div');
+            cloudTip.className = 'cloud-usage-tip';
+            cloudTip.style.cssText = 'margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(52,211,153,0.2);';
+            cloudTip.innerHTML = `
+                <h4 style="color: #34d399; margin-bottom: 12px;">☁️ 云端配置使用方法：</h4>
+                <ul style="margin-left: 20px; color: rgba(255,255,255,0.65);">
+                    <li style="margin-bottom: 8px;">在 GitHub 仓库 <code>Settings → Secrets</code> 中添加：</li>
+                    <li style="margin-bottom: 8px;"><code>CONFIG_URL</code> = <span style="color:#34d399;">${configUrl}</span></li>
+                    <li style="margin-bottom: 8px;"><code>CONFIG_AUTH</code> = <span style="color:#34d399;">${authStr}</span></li>
+                    <li style="margin-bottom: 8px;">签到脚本会优先从云端拉取配置，无需每次修改后推代码</li>
+                </ul>
+            `;
+            resultTips.appendChild(cloudTip);
         }
     // ===== Cursor Spotlight on Site Cards =====
         document.querySelectorAll('.site-card').forEach(card => {

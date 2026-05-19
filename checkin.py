@@ -387,9 +387,88 @@ def parse_accounts(accounts_str: str) -> list:
     return accounts
 
 
+def load_config_from_cloud(config_url: str, config_auth: str = None) -> Optional[str]:
+    """
+    从云端（WebDAV）加载配置
+
+    支持:
+    - 坚果云 WebDAV
+    - 群晖 NAS WebDAV
+    - NextCloud WebDAV
+    - 任何支持 WebDAV/直接链接的云存储
+
+    Args:
+        config_url: 配置文件 URL (WebDAV 或直接下载链接)
+        config_auth: 认证信息，格式:
+            - Basic Auth: "username:password"
+            - Token Auth: "token:your_token"
+    """
+    try:
+        headers = {}
+
+        if config_auth:
+            if config_auth.startswith('token:'):
+                headers['Authorization'] = 'Bearer ' + config_auth[6:]
+            elif ':' in config_auth:
+                import base64 as b64mod
+                credentials = b64mod.b64encode(config_auth.encode('utf-8')).decode('utf-8')
+                headers['Authorization'] = 'Basic ' + credentials
+
+        print(f'[云端] 正在从云端加载配置: {NewAPICheckin._mask_url(config_url)}')
+
+        resp = requests.get(config_url, headers=headers, timeout=30)
+
+        if resp.status_code == 401:
+            print('[云端] 认证失败: 请检查 CONFIG_AUTH 配置')
+            return None
+        elif resp.status_code == 404:
+            print('[云端] 配置文件不存在: 请先通过配置生成器保存到云端')
+            return None
+        elif resp.status_code != 200:
+            print(f'[云端] 加载失败: HTTP {resp.status_code}')
+            return None
+
+        data = resp.json()
+
+        if isinstance(data, list):
+            accounts_str = json.dumps(data)
+            print(f'[云端] 成功加载 {len(data)} 个账号配置')
+            return accounts_str
+        elif isinstance(data, dict) and 'accounts' in data:
+            accounts = data['accounts']
+            accounts_str = json.dumps(accounts)
+            print(f'[云端] 成功加载 {len(accounts)} 个账号配置')
+
+            if data.get('dingtalk'):
+                dt = data['dingtalk']
+                if dt.get('webhook') and not os.environ.get('DINGTALK_WEBHOOK'):
+                    os.environ['DINGTALK_WEBHOOK'] = dt['webhook']
+                if dt.get('secret') and not os.environ.get('DINGTALK_SECRET'):
+                    os.environ['DINGTALK_SECRET'] = dt['secret']
+                if dt.get('webhook'):
+                    print('[云端] 已从云端加载钉钉通知配置')
+
+            return accounts_str
+        else:
+            print('[云端] 配置格式错误: 无法解析账号列表')
+            return None
+
+    except json.JSONDecodeError:
+        print('[云端] 配置文件不是有效的 JSON 格式')
+        return None
+    except requests.exceptions.Timeout:
+        print('[云端] 请求超时')
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f'[云端] 网络请求失败: {e}')
+        return None
+    except Exception as e:
+        print(f'[云端] 加载失败: {e}')
+        return None
+
+
 def main():
     """主函数"""
-    # 设置北京时区
     import pytz
     beijing_tz = pytz.timezone('Asia/Shanghai')
     execution_time = datetime.now(beijing_tz).strftime("%Y-%m-%d %H:%M:%S")
@@ -398,13 +477,20 @@ def main():
     print(f'执行时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
     print('=' * 50)
 
-    # 从环境变量获取账号配置
-    accounts_str = os.environ.get('NEWAPI_ACCOUNTS', '')
+    config_url = os.environ.get('CONFIG_URL', '')
+    config_auth = os.environ.get('CONFIG_AUTH', '')
+
+    accounts_str = ''
+
+    if config_url:
+        accounts_str = load_config_from_cloud(config_url, config_auth) or ''
 
     if not accounts_str:
-        print('[错误] 未配置 NEWAPI_ACCOUNTS 环境变量')
-        print('配置格式: BASE_URL#SESSION_COOKIE')
-        print('多账号用逗号分隔: URL1#SESSION1,URL2#SESSION2')
+        accounts_str = os.environ.get('NEWAPI_ACCOUNTS', '')
+
+    if not accounts_str:
+        print('[错误] 未配置账号信息')
+        print('请设置 CONFIG_URL（云端配置）或 NEWAPI_ACCOUNTS（本地配置）环境变量')
         sys.exit(1)
 
     accounts = parse_accounts(accounts_str)
