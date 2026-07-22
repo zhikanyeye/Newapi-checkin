@@ -58,6 +58,57 @@ function accountView(row) {
   };
 }
 
+let tablesReady = false;
+
+async function ensureTables(env) {
+  if (tablesReady || !env.Check) return;
+  await env.Check.batch([
+    env.Check.prepare(`CREATE TABLE IF NOT EXISTS accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      failure_count INTEGER NOT NULL DEFAULT 0,
+      last_status TEXT,
+      last_message TEXT,
+      last_checkin_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`),
+    env.Check.prepare(`CREATE TABLE IF NOT EXISTS runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      execution_time TEXT NOT NULL,
+      total INTEGER NOT NULL,
+      success_count INTEGER NOT NULL,
+      fail_count INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    )`),
+    env.Check.prepare(`CREATE TABLE IF NOT EXISTS run_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id INTEGER NOT NULL,
+      account_id INTEGER,
+      name TEXT NOT NULL,
+      success INTEGER NOT NULL,
+      message TEXT,
+      quota_awarded INTEGER,
+      checkin_count INTEGER,
+      session_expired INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id),
+      FOREIGN KEY (account_id) REFERENCES accounts(id)
+    )`),
+    env.Check.prepare(`CREATE TABLE IF NOT EXISTS sessions (
+      token_hash TEXT PRIMARY KEY,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`),
+    env.Check.prepare(`CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at DESC)`),
+    env.Check.prepare(`CREATE INDEX IF NOT EXISTS idx_results_run_id ON run_results(run_id)`),
+  ]);
+  tablesReady = true;
+}
+
 async function handler(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -184,6 +235,7 @@ async function handler(request, env) {
 export default {
   async fetch(request, env) {
     try {
+      await ensureTables(env);
       const url = new URL(request.url);
       if (url.pathname.startsWith('/api/')) return await handler(request, env);
       if (env.ASSETS) {
