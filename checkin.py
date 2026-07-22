@@ -467,6 +467,66 @@ def load_config_from_cloud(config_url: str, config_auth: str = None) -> Optional
         return None
 
 
+def load_config_from_worker(worker_url: str, runner_token: str) -> Optional[str]:
+    """从 Cloudflare Worker 获取加密保存的账号配置。"""
+    if not worker_url or not runner_token:
+        return None
+
+    try:
+        print('[Worker] 正在获取启用账号配置...')
+        resp = requests.get(
+            f'{worker_url.rstrip("/")}/api/runner/config',
+            headers={'Authorization': f'Bearer {runner_token}'},
+            timeout=30
+        )
+        if resp.status_code != 200:
+            print(f'[Worker] 获取配置失败: HTTP {resp.status_code}')
+            return None
+        data = resp.json()
+        accounts = data.get('accounts') if isinstance(data, dict) else None
+        if not isinstance(accounts, list):
+            print('[Worker] 配置响应格式错误')
+            return None
+        print(f'[Worker] 成功获取 {len(accounts)} 个账号配置')
+        return json.dumps(accounts)
+    except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
+        print(f'[Worker] 获取配置失败: {exc}')
+        return None
+
+
+def report_results_to_worker(worker_url: str, runner_token: str, execution_time: str,
+                             results: list, total: int, success_count: int,
+                             fail_count: int) -> bool:
+    """将本次执行结果上报到 Cloudflare Worker。"""
+    if not worker_url or not runner_token:
+        return False
+
+    payload = {
+        'execution_time': execution_time,
+        'total': total,
+        'success_count': success_count,
+        'fail_count': fail_count,
+        'results': results,
+    }
+    try:
+        resp = requests.post(
+            f'{worker_url.rstrip("/")}/api/runner/report',
+            headers={
+                'Authorization': f'Bearer {runner_token}',
+                'Content-Type': 'application/json',
+            },
+            json=payload,
+            timeout=30
+        )
+        if resp.status_code in (200, 201):
+            print('[Worker] 签到结果上报成功')
+            return True
+        print(f'[Worker] 签到结果上报失败: HTTP {resp.status_code}')
+    except requests.exceptions.RequestException as exc:
+        print(f'[Worker] 签到结果上报失败: {exc}')
+    return False
+
+
 def main():
     """主函数"""
     import pytz
@@ -479,10 +539,15 @@ def main():
 
     config_url = os.environ.get('CONFIG_URL', '')
     config_auth = os.environ.get('CONFIG_AUTH', '')
+    worker_url = os.environ.get('CHECKIN_WORKER_URL', '')
+    runner_token = os.environ.get('CHECKIN_RUNNER_TOKEN', '')
 
     accounts_str = ''
 
-    if config_url:
+    if worker_url and runner_token:
+        accounts_str = load_config_from_worker(worker_url, runner_token) or ''
+
+    if not accounts_str and config_url:
         accounts_str = load_config_from_cloud(config_url, config_auth) or ''
 
     if not accounts_str:
@@ -490,7 +555,7 @@ def main():
 
     if not accounts_str:
         print('[错误] 未配置账号信息')
-        print('请设置 CONFIG_URL（云端配置）或 NEWAPI_ACCOUNTS（本地配置）环境变量')
+        print('请设置 CHECKIN_WORKER_URL 和 CHECKIN_RUNNER_TOKEN 环境变量')
         sys.exit(1)
 
     accounts = parse_accounts(accounts_str)
@@ -569,6 +634,7 @@ def main():
 
             # 收集结果用于钉钉通知
             account_result = {
+                'account_id': account.get('account_id'),
                 'name': name,
                 'success': True,
                 'message': result['message'],
@@ -583,6 +649,7 @@ def main():
             # 收集结果用于钉钉通知
             message = result.get('message', '')
             account_result = {
+                'account_id': account.get('account_id'),
                 'name': name,
                 'success': False,
                 'message': message,
@@ -604,6 +671,11 @@ def main():
     elif os.environ.get('DINGTALK_WEBHOOK'):
         print('[警告] 已配置 DINGTALK_WEBHOOK 但无法导入通知模块')
 
+    report_results_to_worker(
+        worker_url, runner_token, execution_time, checkin_results,
+        len(accounts), success_count, fail_count
+    )
+
     # 如果全部失败则返回错误码
     if fail_count == len(accounts):
         sys.exit(1)
@@ -611,6 +683,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# === DINGTALK NOTIFICATION PATCH ===
-# This section was added to send DingTalk notifications

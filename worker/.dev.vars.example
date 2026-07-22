@@ -1,0 +1,5 @@
+# Copy this file to .dev.vars for local development.
+# Production values should be configured as Worker environment bindings.
+DASHBOARD_PASSWORD=change-me-dashboard-password
+RUNNER_TOKEN=change-me-runner-token
+DATA_ENCRYPTION_KEY=change-me-long-random-string

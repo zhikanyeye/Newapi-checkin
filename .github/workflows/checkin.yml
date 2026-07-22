@@ -28,9 +28,8 @@ jobs:
 
       - name: 执行签到
         env:
-          CONFIG_URL: ${{ secrets.CONFIG_URL }}
-          CONFIG_AUTH: ${{ secrets.CONFIG_AUTH }}
-          NEWAPI_ACCOUNTS: ${{ secrets.NEWAPI_ACCOUNTS }}
+          CHECKIN_WORKER_URL: ${{ secrets.CHECKIN_WORKER_URL }}
+          CHECKIN_RUNNER_TOKEN: ${{ secrets.CHECKIN_RUNNER_TOKEN }}
           DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
           DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
         run: python checkin.py

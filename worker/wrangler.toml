@@ -1,0 +1,11 @@
+name = "newapi-checkin"
+main = "src/index.js"
+compatibility_date = "2026-07-22"
+keep_vars = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[vars]
+SESSION_TTL_SECONDS = "86400"
