@@ -2,6 +2,20 @@
 
 本文档对应当前推荐架构：Cloudflare Worker 同时托管账号配置页面、签到结果看板和 API，D1 保存加密账号与运行历史，GitHub Actions 只执行签到。
 
+## 导航
+
+| 阶段 | 目标 |
+|------|------|
+| [准备环境](#2-准备条件) | 准备 Cloudflare、GitHub 和 Wrangler |
+| [创建数据库](#3-创建-d1-数据库) | 创建并初始化 D1 |
+| [生成凭据](#4-配置-worker-环境变量绑定) | 生成三个独立安全值 |
+| [连接仓库](#5-通过-github-仓库自动部署-worker推荐) | 开启 Workers Builds |
+| [连接签到](#8-连接-github-actions) | 设置 Actions Secrets |
+| [首次联调](#9-首次联调) | 验证完整数据链路 |
+| [故障排查](#12-故障排查) | 按现象定位问题 |
+
+> 控制台登录有效期和自动签到相互独立。`SESSION_TTL_SECONDS` 只影响浏览器 Dashboard Token，GitHub Actions 始终使用 `RUNNER_TOKEN`。
+
 ## 1. 架构
 
 ```mermaid
@@ -81,7 +95,33 @@ Worker 需要三个敏感环境变量和一个普通变量：
 | `DATA_ENCRYPTION_KEY` | Secret | 加密账号 Session 的主密钥 |
 | `SESSION_TTL_SECONDS` | Variable | 控制台登录有效期，默认 86400 秒 |
 
-### 方式 A：Wrangler 环境绑定
+### 4.1 生成三个独立凭据
+
+`DASHBOARD_PASSWORD`、`RUNNER_TOKEN` 与 `DATA_ENCRYPTION_KEY` 均由部署者自行生成。三个变量使用不同的随机值。
+
+```bash
+# 登录控制台时输入，建议保存到密码管理器
+openssl rand -base64 24
+
+# Worker 和 GitHub Actions 之间的长期认证令牌
+openssl rand -hex 32
+
+# 加密 D1 中账号认证信息的主密钥
+openssl rand -hex 32
+```
+
+变量生命周期：
+
+| 变量 | 有效期 | 轮换影响 |
+|------|--------|----------|
+| `DASHBOARD_PASSWORD` | 手动更换前有效 | 更换后使用新口令登录 |
+| `RUNNER_TOKEN` | 手动更换前有效 | Worker 与 GitHub 必须同步更新 |
+| `DATA_ENCRYPTION_KEY` | 长期保留 | 更换后已有账号密文无法解密，需要重新录入 |
+| `SESSION_TTL_SECONDS` | 每次登录时应用 | 只影响浏览器登录，不影响 Actions |
+
+推荐将 `DATA_ENCRYPTION_KEY` 安全备份。丢失该值后，D1 中保存的账号密文无法恢复。
+
+### 4.2 方式 A：Wrangler 环境绑定
 
 在 `worker` 目录执行：
 
@@ -100,7 +140,7 @@ wrangler secret put DATA_ENCRYPTION_KEY
 SESSION_TTL_SECONDS = "86400"
 ```
 
-### 方式 B：Cloudflare 控制台环境绑定
+### 4.3 方式 B：Cloudflare 控制台环境绑定
 
 1. 打开 Cloudflare Dashboard。
 2. 进入 `Workers & Pages`。
@@ -111,7 +151,7 @@ SESSION_TTL_SECONDS = "86400"
 7. 添加普通变量 `SESSION_TTL_SECONDS=86400`。
 8. 保存并重新部署 Worker。
 
-### 本地开发绑定
+### 4.4 本地开发绑定
 
 复制示例文件：
 
@@ -214,7 +254,13 @@ curl https://newapi-checkin.<你的-workers-subdomain>.workers.dev/api/health
 预期响应：
 
 ```json
-{"ok":true,"service":"newapi-checkin-worker","time":"..."}
+{"ok":true,"service":"newapi-checkin-worker","database":"connected","time":"..."}
+```
+
+若 Binding 或 Secret 尚未配置完整，接口返回 HTTP 503，并在 `missing` 数组中列出缺失项：
+
+```json
+{"ok":false,"service":"newapi-checkin-worker","missing":["Check","RUNNER_TOKEN"],"time":"..."}
 ```
 
 浏览器打开 Worker 根地址，应显示签到控制台。
@@ -242,7 +288,7 @@ curl https://newapi-checkin.<你的-workers-subdomain>.workers.dev/api/health
 预期响应：
 
 ```json
-{"ok":true,"service":"newapi-checkin-worker","time":"..."}
+{"ok":true,"service":"newapi-checkin-worker","database":"connected","time":"..."}
 ```
 
 浏览器直接打开 Worker 根地址。配置页面、结果看板和 API 均由同一个 Worker 域名提供，无需 GitHub Pages，也无需配置 CORS。

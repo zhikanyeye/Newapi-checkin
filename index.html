@@ -1,403 +1,83 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewAPI 自动签到</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            position: relative;
-            overflow-x: hidden;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle at 30% 40%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
-                        radial-gradient(circle at 70% 60%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
-                        radial-gradient(circle at 50% 80%, rgba(167, 139, 250, 0.04) 0%, transparent 50%);
-            animation: bgFloat 20s ease-in-out infinite;
-        }
-
-        @keyframes bgFloat {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            25% { transform: translate(2%, -2%) rotate(1deg); }
-            50% { transform: translate(-1%, 3%) rotate(-1deg); }
-            75% { transform: translate(3%, -1%) rotate(0.5deg); }
-        }
-
-        .container {
-            max-width: 620px;
-            width: 100%;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 24px;
-            overflow: hidden;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 120px rgba(99, 102, 241, 0.1);
-            animation: containerFadeIn 1s ease-out;
-        }
-
-        @keyframes containerFadeIn {
-            from { opacity: 0; transform: translateY(30px) scale(0.97); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-
-        .header {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
-            color: white;
-            padding: 50px 40px 45px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-            animation: pulse 8s ease-in-out infinite;
-        }
-
-        .header::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 60px;
-            background: linear-gradient(to top, rgba(26, 26, 46, 0.3), transparent);
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.05); opacity: 0.8; }
-        }
-
-        .header-icon {
-            font-size: 56px;
-            margin-bottom: 16px;
-            display: inline-block;
-            animation: iconBounce 3s ease-in-out infinite;
-            position: relative;
-        }
-
-        @keyframes iconBounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-6px); }
-        }
-
-        .header h1 {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            letter-spacing: -0.5px;
-            position: relative;
-        }
-
-        .header p {
-            opacity: 0.95;
-            font-size: 17px;
-            line-height: 1.5;
-            position: relative;
-        }
-
-        .content {
-            padding: 40px 35px;
-            color: rgba(255, 255, 255, 0.85);
-        }
-
-        .feature {
-            margin-bottom: 28px;
-            padding: 24px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 16px;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            animation: featureFadeIn 0.6s ease-out backwards;
-        }
-
-        .feature:nth-child(1) { animation-delay: 0.2s; }
-        .feature:nth-child(2) { animation-delay: 0.35s; }
-
-        @keyframes featureFadeIn {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        .feature:hover {
-            background: rgba(255, 255, 255, 0.07);
-            border-color: rgba(99, 102, 241, 0.3);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.15);
-        }
-
-        .feature h3 {
-            color: #a78bfa;
-            margin-bottom: 12px;
-            font-size: 20px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .feature p {
-            color: rgba(255, 255, 255, 0.7);
-            line-height: 1.7;
-            font-size: 15px;
-        }
-
-        .features-list {
-            list-style: none;
-            margin-top: 16px;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-
-        .features-list li {
-            padding: 12px 14px;
-            color: rgba(255, 255, 255, 0.75);
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 10px;
-            font-size: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .features-list li:hover {
-            background: rgba(99, 102, 241, 0.1);
-            border-color: rgba(99, 102, 241, 0.2);
-            transform: translateX(4px);
-        }
-
-        .features-list li::before {
-            content: '✓';
-            color: #34d399;
-            font-weight: bold;
-            font-size: 13px;
-        }
-
-        .btn-container {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            margin-top: 36px;
-            animation: btnFadeIn 0.6s ease-out 0.5s backwards;
-        }
-
-        @keyframes btnFadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .btn {
-            display: block;
-            padding: 18px 28px;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white;
-            text-decoration: none;
-            text-align: center;
-            border-radius: 14px;
-            font-weight: 600;
-            font-size: 17px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 6px 24px rgba(99, 102, 241, 0.35);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .btn:hover::before {
-            left: 100%;
-        }
-
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 40px rgba(99, 102, 241, 0.45);
-        }
-
-        .btn:active {
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(135deg, #059669 0%, #34d399 100%);
-            box-shadow: 0 6px 24px rgba(5, 150, 105, 0.35);
-        }
-
-        .btn-secondary:hover {
-            box-shadow: 0 10px 40px rgba(5, 150, 105, 0.45);
-        }
-
-        .btn-secondary:active {
-            transform: translateY(-1px);
-        }
-
-        .footer {
-            text-align: center;
-            padding: 24px 35px;
-            background: rgba(255, 255, 255, 0.02);
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 14px;
-        }
-
-        .footer a {
-            color: #a78bfa;
-            text-decoration: none;
-            transition: color 0.2s;
-            position: relative;
-        }
-
-        .footer a::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 0;
-            height: 1px;
-            background: #a78bfa;
-            transition: width 0.3s;
-        }
-
-        .footer a:hover {
-            color: #c4b5fd;
-        }
-
-        .footer a:hover::after {
-            width: 100%;
-        }
-
-        @media (max-width: 480px) {
-            body { padding: 12px; }
-
-            .container { border-radius: 16px; }
-
-            .header { padding: 35px 25px 30px; }
-
-            .header-icon { font-size: 42px; }
-
-            .header h1 { font-size: 28px; }
-
-            .header p { font-size: 15px; }
-
-            .content { padding: 25px 20px; }
-
-            .feature { padding: 18px; }
-
-            .features-list { grid-template-columns: 1fr; }
-
-            .btn { padding: 16px 24px; font-size: 16px; }
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#11110f">
+  <title>Check Console · NewAPI 自动签到</title>
+  <style>
+    :root { color-scheme: dark; --bg:#11110f; --panel:#1a1a17; --line:#35352f; --text:#f3f0e5; --muted:#9d9a8e; --signal:#d7ff64; --good:#7de2ad; --mono:"SFMono-Regular",Consolas,monospace; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; color:var(--text); background:linear-gradient(rgba(215,255,100,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(215,255,100,.03) 1px,transparent 1px),var(--bg); background-size:34px 34px; font:15px/1.6 Inter,system-ui,sans-serif; }
+    a { color:inherit; text-decoration:none; }
+    .page { width:min(1120px,calc(100% - 36px)); margin:auto; padding:28px 0 60px; }
+    nav { display:flex; align-items:center; justify-content:space-between; gap:18px; padding-bottom:22px; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .mark { width:40px; height:40px; display:grid; place-items:center; color:#182000; background:var(--signal); border-radius:3px; box-shadow:5px 5px 0 #3a431b; font:800 17px var(--mono); }
+    .brand strong { display:block; }
+    .brand small { color:var(--muted); font:10px var(--mono); letter-spacing:.12em; text-transform:uppercase; }
+    .nav-link { padding:8px 12px; border:1px solid var(--line); border-radius:2px; font-size:13px; }
+    .hero { display:grid; grid-template-columns:1.35fr .65fr; gap:50px; align-items:end; min-height:560px; padding:70px 0 54px; }
+    .kicker { color:var(--signal); font:12px var(--mono); letter-spacing:.12em; text-transform:uppercase; }
+    h1 { max-width:800px; margin:12px 0 0; font-size:clamp(54px,10vw,120px); line-height:.82; letter-spacing:-.08em; }
+    h1 em { color:var(--signal); font-style:normal; }
+    .lead { max-width:620px; margin-top:28px; color:var(--muted); font-size:17px; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:30px; }
+    .button { padding:11px 16px; color:#182000; background:var(--signal); border:1px solid var(--signal); border-radius:2px; font-weight:750; }
+    .button.secondary { color:var(--text); background:transparent; border-color:var(--line); }
+    .architecture { padding:20px; border-left:2px solid var(--signal); background:rgba(215,255,100,.035); }
+    .architecture span { color:var(--muted); font:10px var(--mono); letter-spacing:.1em; text-transform:uppercase; }
+    .flow { display:grid; gap:10px; margin-top:14px; font:12px var(--mono); }
+    .flow div { display:flex; align-items:center; gap:9px; }
+    .flow i { width:7px; height:7px; border-radius:50%; background:var(--good); }
+    .features { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; border:1px solid var(--line); background:var(--line); }
+    .feature { min-height:190px; padding:22px; background:var(--panel); }
+    .feature code { color:var(--signal); font:11px var(--mono); }
+    .feature h2 { margin:30px 0 8px; font-size:17px; }
+    .feature p { margin:0; color:var(--muted); font-size:13px; }
+    footer { display:flex; justify-content:space-between; gap:18px; margin-top:50px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+    @media(max-width:800px){.hero{grid-template-columns:1fr;min-height:auto;padding-top:54px}.features{grid-template-columns:1fr 1fr}}
+    @media(max-width:520px){.page{width:min(100% - 24px,1120px)}h1{font-size:58px}.features{grid-template-columns:1fr}footer{display:block}}
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="header-icon">🚀</div>
-            <h1>NewAPI 自动签到</h1>
-            <p>支持多账号、多站点的自动签到解决方案，每日定时执行</p>
+  <div class="page">
+    <nav>
+      <a class="brand" href="./"><span class="mark">C/</span><span><strong>Check Console</strong><small>NewAPI automation</small></span></a>
+      <a class="nav-link" href="https://github.com/zhikanyeye/Newapi-checkin">GitHub Repository</a>
+    </nav>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="kicker">Cloudflare Worker + D1 + GitHub Actions</div>
+          <h1>签到自动。<br><em>结果可见。</em></h1>
+          <p class="lead">集中管理多个 NewAPI 账号，自动执行每日签到，并在同一个 Worker 控制台查看账号健康度与运行历史。</p>
+          <div class="actions">
+            <a class="button" href="https://github.com/zhikanyeye/Newapi-checkin/blob/main/WORKER_DEPLOYMENT.md">开始部署</a>
+            <a class="button secondary" href="config_generator.html">旧版配置工具</a>
+          </div>
         </div>
+        <aside class="architecture">
+          <span>Production topology</span>
+          <div class="flow">
+            <div><i></i>Worker 托管配置与看板</div>
+            <div><i></i>Check Binding 连接 D1</div>
+            <div><i></i>Actions 只执行签到</div>
+            <div><i></i>AES-GCM 加密认证信息</div>
+          </div>
+        </aside>
+      </section>
 
-        <div class="content">
-            <div class="feature">
-                <h3>🎯 项目简介</h3>
-                <p>基于 HTTP 直连的 NewAPI 自动签到脚本，支持多账号、多站点配置，通过 GitHub Actions 实现每日自动签到。</p>
-            </div>
+      <section class="features">
+        <article class="feature"><code>01 / CONFIG</code><h2>统一账号管理</h2><p>在 Worker 控制台添加、启用和停用账号，减少 GitHub Secrets 的维护成本。</p></article>
+        <article class="feature"><code>02 / SECURE</code><h2>加密持久化</h2><p>Session 与 cf_clearance 在写入 D1 前完成 AES-GCM 加密。</p></article>
+        <article class="feature"><code>03 / OBSERVE</code><h2>结果可视化</h2><p>展示成功率、连续失败、最近状态和近 30 次运行历史。</p></article>
+        <article class="feature"><code>04 / AUTOMATE</code><h2>职责清晰</h2><p>控制台登录会话和 Runner Token 独立，浏览器过期不影响每日签到。</p></article>
+      </section>
+    </main>
 
-            <div class="feature">
-                <h3>✨ 核心功能</h3>
-                <ul class="features-list">
-                    <li>支持多个不同的 NewAPI 站点</li>
-                    <li>可视化配置工具，无需编写代码</li>
-                    <li>GitHub Actions 自动化执行</li>
-                    <li>详细的签到日志和统计</li>
-                    <li>错误处理和超时控制</li>
-                    <li>钉钉通知推送结果</li>
-                </ul>
-            </div>
-
-            <div class="btn-container">
-                <a href="https://github.com/zhikanyeye/Newapi-checkin" class="btn">查看项目文档</a>
-                <a href="dashboard.html" class="btn btn-secondary">打开签到控制台</a>
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>Maintained by <a href="https://github.com/zhikanyeye" target="_blank">zhikanyeye</a></p>
-        </div>
-    </div>
-<script>
-        // ===== 3D Card Tilt Effect =====
-        const tiltCards = document.querySelectorAll('.feature');
-        const tiltBtns = document.querySelectorAll('.btn');
-
-        tiltCards.forEach(card => {
-            card.addEventListener('mousemove', (e) => {
-                const rect = card.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                const centerX = rect.width / 2;
-                const centerY = rect.height / 2;
-                const rotateX = (y - centerY) / 20;
-                const rotateY = (centerX - x) / 20;
-                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px) scale(1.02)`;
-            });
-            card.addEventListener('mouseleave', () => {
-                card.style.transform = '';
-            });
-        });
-
-        // ===== Magnetic Button Hover =====
-        tiltBtns.forEach(btn => {
-            btn.addEventListener('mousemove', (e) => {
-                const rect = btn.getBoundingClientRect();
-                const x = e.clientX - rect.left - rect.width / 2;
-                const y = e.clientY - rect.top - rect.height / 2;
-                btn.style.transform = `translate(${x / 8}px, ${y / 8 - 3}px)`;
-                btn.style.boxShadow = `0 ${10 + y / 4}px ${40 + Math.abs(x) / 2}px rgba(99, 102, 241, 0.45)`;
-            });
-            btn.addEventListener('mouseleave', () => {
-                btn.style.transform = '';
-                btn.style.boxShadow = '';
-            });
-        });
-    </script>
+    <footer><span>Maintained by zhikanyeye</span><span>MIT License · NewAPI Check-in</span></footer>
+  </div>
 </body>
 </html>

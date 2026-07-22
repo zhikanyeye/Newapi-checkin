@@ -31,6 +31,7 @@ async function requireSession(request, env) {
 }
 
 async function encrypt(value, env) {
+  if (!env.DATA_ENCRYPTION_KEY) throw new Error('缺少 DATA_ENCRYPTION_KEY Secret');
   const keyBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.DATA_ENCRYPTION_KEY)));
   const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt']);
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -39,6 +40,7 @@ async function encrypt(value, env) {
 }
 
 async function decrypt(value, env) {
+  if (!env.DATA_ENCRYPTION_KEY) throw new Error('缺少 DATA_ENCRYPTION_KEY Secret');
   const [ivText, dataText] = value.split('.');
   const keyBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.DATA_ENCRYPTION_KEY)));
   const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt']);
@@ -62,11 +64,21 @@ async function handler(request, env) {
   const method = request.method;
 
   if (method === 'GET' && path === '/api/health') {
-    return json({ ok: true, service: 'newapi-checkin-worker', time: now() }, 200, env);
+    const missing = [];
+    if (!env.Check) missing.push('Check');
+    if (!env.DASHBOARD_PASSWORD) missing.push('DASHBOARD_PASSWORD');
+    if (!env.RUNNER_TOKEN) missing.push('RUNNER_TOKEN');
+    if (!env.DATA_ENCRYPTION_KEY) missing.push('DATA_ENCRYPTION_KEY');
+    if (missing.length) {
+      return json({ ok: false, service: 'newapi-checkin-worker', missing, time: now() }, 503, env);
+    }
+    await env.Check.prepare('SELECT 1').first();
+    return json({ ok: true, service: 'newapi-checkin-worker', database: 'connected', time: now() }, 200, env);
   }
 
   if (method === 'POST' && path === '/api/auth/login') {
     const body = await text(request);
+    if (!env.Check || !env.DASHBOARD_PASSWORD) return json({ error: 'Worker 尚未完成 Check 和 DASHBOARD_PASSWORD 绑定' }, 503, env);
     if (!body?.password || body.password !== env.DASHBOARD_PASSWORD) return json({ error: '访问口令错误' }, 401, env);
     const token = crypto.randomUUID();
     const expires = new Date(Date.now() + Number(env.SESSION_TTL_SECONDS || 86400) * 1000).toISOString();
