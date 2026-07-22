@@ -2,6 +2,8 @@
 
 本文档对应当前推荐架构：Cloudflare Worker 同时托管账号配置页面、签到结果看板和 API，D1 保存加密账号与运行历史，GitHub Actions 只执行签到。
 
+本项目无需 GitHub Pages。若仓库之前启用过 Pages，请进入 GitHub `Settings` -> `Pages`，将发布 Source 设置为 `None`。
+
 ## 导航
 
 | 阶段 | 目标 |
@@ -13,6 +15,8 @@
 | [连接签到](#8-连接-github-actions) | 设置 Actions Secrets |
 | [首次联调](#9-首次联调) | 验证完整数据链路 |
 | [故障排查](#12-故障排查) | 按现象定位问题 |
+
+部署结束后的账号录入、Cookie 获取和第一次签到操作，可直接阅读 [`FIRST_RUN.md`](FIRST_RUN.md)。
 
 > 控制台登录有效期和自动签到相互独立。`SESSION_TTL_SECONDS` 只影响浏览器 Dashboard Token，GitHub Actions 始终使用 `RUNNER_TOKEN`。
 
@@ -295,12 +299,51 @@ curl https://newapi-checkin.<你的-workers-subdomain>.workers.dev/api/health
 
 ## 7. 添加签到账号
 
-1. 打开 Worker 根地址。
-2. 使用 `DASHBOARD_PASSWORD` 登录。
-3. 填写账号名称、NewAPI 站点 URL 和 Session Cookie。
-4. 根据站点要求填写 `user_id` 或 `cf_clearance`。
-5. 点击“添加账号”。
-6. 页面显示账号后，可随时启用或停用。
+### 7.1 从浏览器获取 Session
+
+1. 在目标 NewAPI 站点登录。
+2. 按 `F12` 打开开发者工具。
+3. 进入 `Application` -> `Storage` -> `Cookies`。
+4. 选择当前站点域名。
+5. 找到名称为 `session` 的 Cookie。
+6. 复制 `Value` 列的完整内容。
+
+只复制 Value：
+
+```text
+Cookie 原文：session=abc123xyz; Path=/; HttpOnly
+控制台填写：abc123xyz
+```
+
+### 7.2 填写控制台表单
+
+| 字段 | 必填 | 填写方式 |
+|------|------|----------|
+| 备注名称 | 是 | 自由填写，例如 `主力站` |
+| 用户 ID | 否 | 优先留空，脚本会调用 `/api/user/self` 自动获取 |
+| 站点地址 | 是 | 填根地址，例如 `https://api.example.com` |
+| Session Cookie | 是 | 填 `session` Cookie 的 Value |
+| cf_clearance | 否 | 通常留空，Cloudflare 回退失败时再填写 |
+
+站点地址不要包含控制台路径：
+
+```text
+当前页面：https://api.example.com/console/personal
+正确填写：https://api.example.com
+```
+
+### 7.3 保存后的行为
+
+点击“加密保存账号”后：
+
+1. Worker 使用 `DATA_ENCRYPTION_KEY` 加密账号运行配置。
+2. 密文写入 `Check` Binding 对应的 D1。
+3. 页面只显示站点 Origin 和“等待首跑”状态。
+4. Session 不会通过 Dashboard API 返回浏览器。
+
+用户 ID 一般留空。Actions 日志提示缺少 `new-api-user` 时，在浏览器 Network 中打开 `/api/user/self` 请求，从响应 `data.id` 获取用户 ID 后重新录入。
+
+Session 过期时，在账号行点击“更新凭据”，粘贴新的 Session 后提交。该操作会覆盖账号密文并保留历史签到记录。
 
 前端只能读取账号名称、站点 Origin、启用状态和签到结果。Worker API 不会向前端返回 Session、`cf_clearance` 或加密密文。
 
@@ -340,9 +383,38 @@ GitHub CHECKIN_RUNNER_TOKEN
 
 `CHECKIN_WORKER_URL` 指向部署后的 Worker，形成完整连接。
 
+具体填写示例：
+
+```text
+Cloudflare Worker 地址：https://newapi-checkin.example.workers.dev
+
+GitHub Secret 1
+Name: CHECKIN_WORKER_URL
+Secret: https://newapi-checkin.example.workers.dev
+
+GitHub Secret 2
+Name: CHECKIN_RUNNER_TOKEN
+Secret: 与 Cloudflare RUNNER_TOKEN 完全相同
+```
+
+Worker 地址使用根地址，不添加 `/api` 和末尾斜杠。
+
+### Worker 与 GitHub 的实际调用过程
+
+1. Actions 将两个 GitHub Secrets 注入 `checkin.py`。
+2. `checkin.py` 携带 Bearer Token 请求 Worker `/api/runner/config`。
+3. Worker 校验 Token，读取并解密 D1 中的启用账号。
+4. Runner 使用账号 Session 请求各 NewAPI 站点。
+5. Runner 将脱敏结果提交到 Worker `/api/runner/report`。
+6. Worker 保存结果，控制台从 D1 查询并展示。
+
 ## 9. 首次联调
 
-在 GitHub 仓库中进入 `Actions` -> `NewAPI 自动签到` -> `Run workflow`。
+1. 在 GitHub 仓库进入 `Actions`。
+2. 左侧选择 `NewAPI 自动签到`。
+3. 点击 `Run workflow`。
+4. 分支选择 `main`。
+5. 再次点击 `Run workflow` 并打开新运行日志。
 
 工作流日志应依次出现：
 
@@ -360,6 +432,8 @@ GitHub CHECKIN_RUNNER_TOKEN
 - 成功率
 - 每个账号最近状态
 - 最近 30 次运行记录
+
+验收标准：账号状态不再是“等待首跑”，运行历史出现本次执行时间，并且日志包含“签到结果上报成功”。
 
 ## 10. 本地联调
 

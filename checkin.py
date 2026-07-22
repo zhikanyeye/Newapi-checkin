@@ -480,12 +480,19 @@ def load_config_from_worker(worker_url: str, runner_token: str) -> Optional[str]
             timeout=30
         )
         if resp.status_code != 200:
-            print(f'[Worker] 获取配置失败: HTTP {resp.status_code}')
+            try:
+                error = resp.json().get('error', resp.text[:200])
+            except json.JSONDecodeError:
+                error = resp.text[:200]
+            print(f'[Worker] 获取配置失败: HTTP {resp.status_code} - {error}')
             return None
         data = resp.json()
         accounts = data.get('accounts') if isinstance(data, dict) else None
         if not isinstance(accounts, list):
             print('[Worker] 配置响应格式错误')
+            return None
+        if not accounts:
+            print('[Worker] 没有启用的签到账号，请先在 Worker 控制台添加或启用账号')
             return None
         print(f'[Worker] 成功获取 {len(accounts)} 个账号配置')
         return json.dumps(accounts)
@@ -521,7 +528,11 @@ def report_results_to_worker(worker_url: str, runner_token: str, execution_time:
         if resp.status_code in (200, 201):
             print('[Worker] 签到结果上报成功')
             return True
-        print(f'[Worker] 签到结果上报失败: HTTP {resp.status_code}')
+        try:
+            error = resp.json().get('error', resp.text[:200])
+        except json.JSONDecodeError:
+            error = resp.text[:200]
+        print(f'[Worker] 签到结果上报失败: HTTP {resp.status_code} - {error}')
     except requests.exceptions.RequestException as exc:
         print(f'[Worker] 签到结果上报失败: {exc}')
     return False

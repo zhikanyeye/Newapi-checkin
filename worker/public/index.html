@@ -86,6 +86,20 @@
     .metric strong.good { color: var(--good); }
     .metric strong.bad { color: var(--bad); }
 
+    .setup { margin-top: 16px; border: 1px solid var(--line); background: var(--paper); }
+    .setup-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 18px; border-bottom: 1px solid var(--line); }
+    .setup-head h2 { font-size: 15px; }
+    .setup-head p { color: var(--muted); font-size: 12px; }
+    .setup-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .setup-step { min-height: 154px; padding: 18px; border-right: 1px solid var(--line); }
+    .setup-step:last-child { border-right: 0; }
+    .setup-number { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font: 10px var(--mono); letter-spacing: .08em; }
+    .setup-check { color: var(--warn); }
+    .setup-step.done .setup-check { color: var(--good); }
+    .setup-step h3 { margin-top: 22px; font-size: 14px; }
+    .setup-step p { margin-top: 5px; color: var(--muted); font-size: 12px; }
+    .setup-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line); }
+
     .workspace { display: grid; grid-template-columns: minmax(330px, .82fr) minmax(0, 1.5fr); gap: 16px; margin-top: 16px; }
     .stack { display: grid; gap: 16px; align-content: start; }
     .panel { border: 1px solid var(--line); background: rgba(26, 26, 23, .96); }
@@ -98,6 +112,7 @@
     .field { display: grid; gap: 6px; }
     .field.full { grid-column: 1 / -1; }
     .field label { color: var(--muted); font: 11px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+    .field-help { color: #77746b; font-size: 11px; }
     input {
       width: 100%;
       padding: 11px 12px;
@@ -111,6 +126,13 @@
     input:focus { border-color: var(--signal); box-shadow: 0 0 0 3px rgba(215, 255, 100, .08); }
     input::placeholder { color: #66645c; }
     .form-note { margin-top: 12px; color: var(--muted); font-size: 12px; }
+    .input-guide { margin-top: 14px; border: 1px solid var(--line); background: #151512; }
+    .input-guide summary { padding: 11px 12px; cursor: pointer; color: var(--signal); font: 11px var(--mono); letter-spacing: .04em; }
+    .guide-content { display: grid; gap: 12px; padding: 0 12px 13px; color: var(--muted); font-size: 12px; }
+    .guide-content strong { color: var(--text); }
+    .guide-content ol { margin: 0; padding-left: 20px; }
+    .guide-content li + li { margin-top: 5px; }
+    .guide-content code { color: var(--signal); }
 
     .button {
       min-height: 40px;
@@ -128,6 +150,9 @@
     .button.secondary:hover { background: var(--paper-2); }
     .button.small { min-height: 32px; padding: 5px 10px; font-size: 12px; }
     .form-submit { width: 100%; margin-top: 14px; }
+    .form-buttons { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 14px; }
+    .form-buttons .form-submit { margin-top: 0; }
+    [hidden] { display: none !important; }
 
     .security-list { display: grid; gap: 12px; }
     .security-item { display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
@@ -188,6 +213,9 @@
       .hero { grid-template-columns: 1fr; }
       .run-meta { align-self: auto; }
       .workspace { grid-template-columns: 1fr; }
+      .setup-grid { grid-template-columns: 1fr 1fr; }
+      .setup-step:nth-child(2) { border-right: 0; }
+      .setup-step:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
       .login-page { grid-template-columns: 1fr; }
       .login-story { min-height: 44vh; border-right: 0; border-bottom: 1px solid var(--line); }
       .login-box { min-height: 56vh; }
@@ -200,6 +228,10 @@
       .metrics { grid-template-columns: 1fr 1fr; }
       .metric { min-height: 108px; }
       .form-grid { grid-template-columns: 1fr; }
+      .setup-grid { grid-template-columns: 1fr; }
+      .setup-step { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .setup-step:nth-child(2) { border-right: 0; }
+      .setup-step:last-child { border-bottom: 0; }
       .field.full { grid-column: auto; }
       th, td { padding: 12px; }
       .login-story { padding: 34px 24px; }
@@ -380,21 +412,58 @@
               <article class="metric"><div class="metric-label">成功率 <span class="metric-index">04</span></div><strong>${successRate}%</strong></article>
             </section>
 
+            <section class="setup">
+              <div class="setup-head">
+                <div><h2>首次使用进度</h2><p>按顺序完成四步，Worker 才能与 GitHub Actions 形成完整签到链路。</p></div>
+                <span class="mono">${runs.length ? '4 / 4' : accounts.length ? '2 / 4' : '1 / 4'}</span>
+              </div>
+              <div class="setup-grid">
+                <article class="setup-step done"><div class="setup-number"><span>STEP 01</span><span class="setup-check">READY</span></div><h3>Worker 已可访问</h3><p>当前页面已通过 Dashboard Password 登录，Worker 与 D1 连接可用。</p></article>
+                <article class="setup-step ${accounts.length ? 'done' : ''}"><div class="setup-number"><span>STEP 02</span><span class="setup-check">${accounts.length ? 'DONE' : 'TODO'}</span></div><h3>录入签到账号</h3><p>${accounts.length ? `已保存 ${accounts.length} 个账号。` : '使用下方表单填写站点 URL 和 Session Cookie。'}</p></article>
+                <article class="setup-step ${runs.length ? 'done' : ''}"><div class="setup-number"><span>STEP 03</span><span class="setup-check">${runs.length ? 'DONE' : 'TODO'}</span></div><h3>连接 GitHub Secrets</h3><p>将当前 Worker 地址和同一个 Runner Token 保存到仓库 Secrets。</p></article>
+                <article class="setup-step ${runs.length ? 'done' : ''}"><div class="setup-number"><span>STEP 04</span><span class="setup-check">${runs.length ? 'DONE' : 'TODO'}</span></div><h3>手动运行一次</h3><p>${runs.length ? '已收到 Actions 上报的签到记录。' : '打开 Actions，执行 NewAPI 自动签到工作流。'}</p></article>
+              </div>
+              <div class="setup-actions">
+                <button id="copy-worker-url" class="button secondary small">复制 Worker 地址</button>
+                <a class="button secondary small" href="https://github.com/zhikanyeye/Newapi-checkin/settings/secrets/actions" target="_blank" rel="noreferrer">打开 GitHub Secrets</a>
+                <a class="button secondary small" href="https://github.com/zhikanyeye/Newapi-checkin/actions/workflows/checkin.yml" target="_blank" rel="noreferrer">打开签到 Actions</a>
+                <a class="button secondary small" href="https://github.com/zhikanyeye/Newapi-checkin/blob/main/FIRST_RUN.md" target="_blank" rel="noreferrer">查看首次使用指南</a>
+              </div>
+            </section>
+
             <section class="workspace">
               <div class="stack">
                 <article class="panel">
                   <div class="panel-head"><h2>添加签到账号</h2><span>ENCRYPTED AT REST</span></div>
                   <div class="panel-body">
                     <form id="account-form">
+                      <input type="hidden" name="account_id" id="account-id">
                       <div class="form-grid">
-                        <div class="field"><label for="name">备注名称</label><input id="name" name="name" placeholder="主力站" required></div>
-                        <div class="field"><label for="user-id">用户 ID</label><input id="user-id" name="user_id" placeholder="可选"></div>
-                        <div class="field full"><label for="url">站点地址</label><input id="url" name="url" type="url" placeholder="https://api.example.com" required></div>
-                        <div class="field full"><label for="session">Session Cookie</label><input id="session" name="session" type="password" placeholder="仅在提交时发送给 Worker" required></div>
-                        <div class="field full"><label for="clearance">cf_clearance</label><input id="clearance" name="cf_clearance" type="password" placeholder="Cloudflare 站点可选"></div>
+                        <div class="field"><label for="name">备注名称</label><input id="name" name="name" placeholder="例如：主力站" required><span class="field-help">仅用于控制台区分账号，可自由填写。</span></div>
+                        <div class="field"><label for="user-id">用户 ID</label><input id="user-id" name="user_id" placeholder="一般留空"><span class="field-help">脚本会自动获取；特定站点要求时再填写。</span></div>
+                        <div class="field full"><label for="url">站点地址</label><input id="url" name="url" type="url" placeholder="https://api.example.com" required><span class="field-help">填写登录站点的根地址，不包含 /console 或其他页面路径。</span></div>
+                        <div class="field full"><label for="session">Session Cookie</label><input id="session" name="session" type="password" placeholder="只粘贴 session 的值" required><span class="field-help">粘贴 Cookie 中 session= 后面的值，不包含 session= 和分号。</span></div>
+                        <div class="field full"><label for="clearance">cf_clearance</label><input id="clearance" name="cf_clearance" type="password" placeholder="通常留空"><span class="field-help">只有站点受 Cloudflare 挑战保护且自动回退失败时才需要。</span></div>
                       </div>
-                      <p class="form-note">控制台查询接口不会返回已保存的 Session 或密文。</p>
-                      <button class="button form-submit" type="submit">加密保存账号</button>
+                      <details class="input-guide">
+                        <summary>如何从浏览器获取 Session Cookie</summary>
+                        <div class="guide-content">
+                          <ol>
+                            <li>在目标 NewAPI 站点完成登录。</li>
+                            <li>按 F12 打开开发者工具，进入 Application 或 应用 标签。</li>
+                            <li>依次打开 Storage -> Cookies -> 当前站点域名。</li>
+                            <li>找到名称为 <code>session</code> 的 Cookie，复制 Value 列完整内容。</li>
+                            <li>回到本表单，只粘贴 Value；无需填写 <code>session=</code>。</li>
+                          </ol>
+                          <p><strong>用户 ID：</strong>优先留空。脚本会请求 <code>/api/user/self</code> 自动获取。签到日志提示缺少 new-api-user 时，再从该接口响应的 <code>data.id</code> 填入。</p>
+                          <p><strong>cf_clearance：</strong>获取方式与 session 相同，在 Cookies 列表复制同名 Cookie 的 Value。</p>
+                        </div>
+                      </details>
+                      <p class="form-note">保存后 Worker 加密写入 D1，控制台查询接口不会返回 Session 或密文。</p>
+                      <div class="form-buttons">
+                        <button class="button form-submit" type="submit">加密保存账号</button>
+                        <button class="button secondary" type="button" id="cancel-edit" hidden>取消更新</button>
+                      </div>
                     </form>
                   </div>
                 </article>
@@ -423,7 +492,7 @@
                             <td><span class="status ${status.className}">${status.label}</span></td>
                             <td><span class="fail-count">${account.failure_count || 0}</span></td>
                             <td><span class="run-time">${formatTime(account.last_checkin_at)}</span></td>
-                            <td><button class="button secondary small account-toggle" data-id="${account.id}" data-enabled="${account.enabled}">${account.enabled ? '停用' : '启用'}</button></td>
+                            <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="button secondary small account-edit" data-id="${account.id}" data-name="${escapeHtml(account.name)}" data-url="${escapeHtml(account.url)}">更新凭据</button><button class="button secondary small account-toggle" data-id="${account.id}" data-enabled="${account.enabled}">${account.enabled ? '停用' : '启用'}</button></div></td>
                           </tr>`;
                         }).join('')}</tbody>
                       </table>` : '<div class="empty"><strong>还没有签到账号</strong>使用左侧表单添加第一个账号。</div>'}
@@ -449,22 +518,58 @@
           renderLogin();
         });
 
+        document.querySelector('#copy-worker-url').addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(location.origin);
+            showToast(`已复制 Worker 地址：${location.origin}`);
+          } catch {
+            showToast(`Worker 地址：${location.origin}`);
+          }
+        });
+
         document.querySelector('#account-form').addEventListener('submit', async (event) => {
           event.preventDefault();
           const button = event.currentTarget.querySelector('button[type="submit"]');
           const payload = Object.fromEntries(new FormData(event.currentTarget));
+          const accountId = payload.account_id;
+          delete payload.account_id;
           Object.keys(payload).forEach((field) => { if (!payload[field]) delete payload[field]; });
           button.disabled = true;
           button.textContent = '正在加密保存...';
           try {
-            await api('/api/dashboard/accounts', { method: 'POST', body: JSON.stringify(payload) });
-            showToast('账号已加密保存');
+            await api(accountId ? `/api/dashboard/accounts/${accountId}` : '/api/dashboard/accounts', {
+              method: accountId ? 'PATCH' : 'POST',
+              body: JSON.stringify(payload),
+            });
+            showToast(accountId ? '账号凭据已更新' : '账号已加密保存');
             await renderDashboard();
           } catch (error) {
             button.disabled = false;
             button.textContent = '加密保存账号';
             showToast(error.message, true);
           }
+        });
+
+        document.querySelectorAll('.account-edit').forEach((button) => {
+          button.addEventListener('click', () => {
+            const form = document.querySelector('#account-form');
+            form.elements.account_id.value = button.dataset.id;
+            form.elements.name.value = button.dataset.name;
+            form.elements.url.value = button.dataset.url;
+            form.elements.session.value = '';
+            form.querySelector('button[type="submit"]').textContent = '加密更新凭据';
+            document.querySelector('#cancel-edit').hidden = false;
+            form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            form.elements.session.focus({ preventScroll: true });
+          });
+        });
+
+        document.querySelector('#cancel-edit').addEventListener('click', () => {
+          const form = document.querySelector('#account-form');
+          form.reset();
+          form.elements.account_id.value = '';
+          form.querySelector('button[type="submit"]').textContent = '加密保存账号';
+          document.querySelector('#cancel-edit').hidden = true;
         });
 
         document.querySelectorAll('.account-toggle').forEach((button) => {

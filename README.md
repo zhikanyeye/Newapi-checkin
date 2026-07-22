@@ -2,7 +2,9 @@
 
 > NewAPI 多账号自动签到控制台。配置与结果由 Cloudflare Worker 承载，数据保存在 D1，GitHub Actions 专注执行签到。
 
-[部署指南](WORKER_DEPLOYMENT.md) · [Worker 源码](worker/src/index.js) · [控制台 UI](worker/public/index.html) · [MIT License](LICENSE)
+项目采用 Worker-only Web 架构。生产控制台只由 `worker/public/index.html` 提供，无需启用 GitHub Pages。
+
+[首次使用指南](FIRST_RUN.md) · [部署指南](WORKER_DEPLOYMENT.md) · [Worker 源码](worker/src/index.js) · [控制台 UI](worker/public/index.html) · [MIT License](LICENSE)
 
 ## 项目定位
 
@@ -115,9 +117,15 @@ wrangler d1 execute newapi-checkin --remote --file=./schema.sql
 
 ### 5. 完成首次联调
 
-1. 打开 Worker 根地址并添加账号。
-2. 在 GitHub Actions 中手动运行 `NewAPI 自动签到`。
-3. 刷新控制台查看成功率、账号状态和运行历史。
+1. 打开 Worker 根地址，用 `DASHBOARD_PASSWORD` 登录。
+2. 从 NewAPI 站点浏览器 Cookies 中复制 `session` 的 Value。
+3. 在控制台填写备注名称、站点根地址和 Session，用户 ID 与 cf_clearance 通常留空。
+4. 将 Worker 地址保存为 GitHub Secret `CHECKIN_WORKER_URL`。
+5. 将 Cloudflare `RUNNER_TOKEN` 的同一个值保存为 GitHub Secret `CHECKIN_RUNNER_TOKEN`。
+6. 在 GitHub Actions 中手动运行 `NewAPI 自动签到`。
+7. 刷新控制台，确认账号状态和运行历史已经更新。
+
+账号字段获取方式、Secrets 的逐项填写位置和完整请求链路见 [首次使用指南](FIRST_RUN.md)。
 
 ## 数据安全
 
@@ -137,6 +145,7 @@ wrangler d1 execute newapi-checkin --remote --file=./schema.sql
 ├── checkin.py                     # 签到、配置拉取和结果上报
 ├── cf_bypass.py                   # Cloudflare 检测与回退
 ├── dingtalk_notifier.py           # 可选钉钉通知
+├── FIRST_RUN.md                   # 首次账号录入与 Actions 联调
 ├── WORKER_DEPLOYMENT.md           # 完整部署与排障指南
 └── worker/
     ├── public/index.html          # 生产控制台 UI
@@ -157,7 +166,7 @@ wrangler d1 execute newapi-checkin --remote --file=./schema.sql
 | `GET` | `/api/dashboard/runs` | Dashboard Token | 最近 30 次运行 |
 | `GET` | `/api/dashboard/runs/:id` | Dashboard Token | 单次运行明细 |
 | `POST` | `/api/dashboard/accounts` | Dashboard Token | 添加加密账号 |
-| `PATCH` | `/api/dashboard/accounts/:id` | Dashboard Token | 启用或停用账号 |
+| `PATCH` | `/api/dashboard/accounts/:id` | Dashboard Token | 更新凭据、启用或停用账号 |
 | `GET` | `/api/runner/config` | Runner Token | 获取启用账号 |
 | `POST` | `/api/runner/report` | Runner Token | 上报脱敏结果 |
 

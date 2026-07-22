@@ -148,8 +148,34 @@ async function handler(request, env) {
   if (method === 'PATCH' && path.startsWith('/api/dashboard/accounts/')) {
     const id = path.split('/').pop();
     const body = await text(request);
-    if (!body || typeof body.enabled !== 'boolean') return json({ error: 'enabled 必须是布尔值' }, 400, env);
-    await env.Check.prepare('UPDATE accounts SET enabled = ?, updated_at = ? WHERE id = ?').bind(body.enabled ? 1 : 0, now(), id).run();
+    if (!body) return json({ error: '请求格式错误' }, 400, env);
+    const account = await env.Check.prepare('SELECT * FROM accounts WHERE id = ?').bind(id).first();
+    if (!account) return json({ error: '账号不存在' }, 404, env);
+
+    if (typeof body.enabled === 'boolean') {
+      await env.Check.prepare('UPDATE accounts SET enabled = ?, updated_at = ? WHERE id = ?')
+        .bind(body.enabled ? 1 : 0, now(), id).run();
+    }
+
+    if (body.session) {
+      const current = JSON.parse(await decrypt(account.secret, env));
+      const nextUrl = body.url || current.url;
+      if (!/^https?:\/\//.test(nextUrl)) return json({ error: 'URL 格式不正确' }, 400, env);
+      const next = {
+        ...current,
+        url: nextUrl.replace(/\/$/, ''),
+        session: body.session,
+      };
+      if ('user_id' in body) next.user_id = body.user_id || undefined;
+      if ('cf_clearance' in body) next.cf_clearance = body.cf_clearance || undefined;
+      const secret = await encrypt(JSON.stringify(next), env);
+      await env.Check.prepare('UPDATE accounts SET name = ?, url = ?, secret = ?, failure_count = 0, last_status = NULL, last_message = NULL, updated_at = ? WHERE id = ?')
+        .bind(body.name || account.name, new URL(next.url).origin, secret, now(), id).run();
+    }
+
+    if (typeof body.enabled !== 'boolean' && !body.session) {
+      return json({ error: '请提供 enabled 或新的 Session' }, 400, env);
+    }
     return json({ ok: true }, 200, env);
   }
   return json({ error: 'Not found' }, 404, env);
@@ -162,7 +188,7 @@ export default {
       if (url.pathname.startsWith('/api/')) return await handler(request, env);
       if (env.ASSETS) {
         const assetUrl = new URL(request.url);
-        if (assetUrl.pathname === '/' || assetUrl.pathname === '/dashboard.html') assetUrl.pathname = '/index.html';
+        if (assetUrl.pathname === '/') assetUrl.pathname = '/index.html';
         return env.ASSETS.fetch(new Request(assetUrl, request));
       }
       return json({ error: '静态资源绑定未配置' }, 500, env);
