@@ -118,6 +118,72 @@ class NewAPICheckin:
 
         return None
 
+    @staticmethod
+    def _already_checked_in(message) -> bool:
+        if message is None:
+            return False
+        msg = message if isinstance(message, str) else str(message)
+        keywords = (
+            '已签到', '已经签到', '今日已签', '重复签到',
+            'already checked', 'already check-in', 'already checkin',
+        )
+        lower = msg.lower()
+        return any((k.lower() in lower) if all(ord(c) < 128 for c in k) else (k in msg) for k in keywords)
+
+    @staticmethod
+    def _normalize_checkin_payload(data) -> dict:
+        """统一解析签到接口，兼容 data=null、嵌套 data 与「已签到」伪失败。"""
+        result = {
+            'success': False,
+            'message': '',
+            'checkin_date': None,
+            'quota_awarded': None,
+            'already_checked_in': False,
+        }
+        if not isinstance(data, dict):
+            result['message'] = f'响应格式错误: {type(data).__name__}'
+            return result
+
+        message = data.get('message')
+        if message is None:
+            message = data.get('msg')
+        if message is None and not isinstance(data.get('data'), (dict, list, type(None))):
+            message = data.get('data')
+        if message is None:
+            message = ''
+        if not isinstance(message, str):
+            try:
+                message = json.dumps(message, ensure_ascii=False)
+            except Exception:
+                message = str(message)
+
+        success_flag = (
+            data.get('success') is True
+            or data.get('status') == 'success'
+            or data.get('ret') == 1
+            or data.get('code') == 0
+        )
+        already = NewAPICheckin._already_checked_in(message)
+        result['already_checked_in'] = already
+        result['success'] = bool(success_flag or already)
+        result['message'] = message or ('签到成功' if result['success'] else '签到失败')
+
+        candidates = []
+        payload = data.get('data')
+        if isinstance(payload, dict):
+            candidates.append(payload)
+            if isinstance(payload.get('data'), dict):
+                candidates.append(payload['data'])
+        candidates.append(data)
+        for item in candidates:
+            if not isinstance(item, dict):
+                continue
+            if result['checkin_date'] is None and item.get('checkin_date') is not None:
+                result['checkin_date'] = item.get('checkin_date')
+            if result['quota_awarded'] is None and item.get('quota_awarded') is not None:
+                result['quota_awarded'] = item.get('quota_awarded')
+        return result
+
     def get_user_info(self, verbose: bool = False) -> Optional[dict]:
         """
         获取用户信息
@@ -237,17 +303,18 @@ class NewAPICheckin:
                     return self._cf_bypass_checkin()
 
             if resp.status_code == 200:
-                if data.get('success'):
-                    result['success'] = True
-                    result['message'] = data.get('message', '签到成功')
-
-                    checkin_data = data.get('data', {})
-                    result['checkin_date'] = checkin_data.get('checkin_date')
-                    result['quota_awarded'] = checkin_data.get('quota_awarded')
-                else:
-                    result['message'] = data.get('message', '签到失败')
+                normalized = self._normalize_checkin_payload(data)
+                result['success'] = normalized['success']
+                result['message'] = normalized['message']
+                result['checkin_date'] = normalized['checkin_date']
+                result['quota_awarded'] = normalized['quota_awarded']
             else:
-                result['message'] = f'HTTP {resp.status_code}: {data.get("message", "未知错误")}'
+                message = data.get('message') or data.get('msg') or '未知错误'
+                if self._already_checked_in(message):
+                    result['success'] = True
+                    result['message'] = message
+                else:
+                    result['message'] = f'HTTP {resp.status_code}: {message}'
 
         except requests.exceptions.Timeout:
             result['message'] = '请求超时'
@@ -295,19 +362,26 @@ class NewAPICheckin:
             result['message'] = f'CF 绕过后签到失败: {browser_result["error"]}'
             return result
 
-        if browser_result.get('alreadyCheckedIn'):
+        # Playwright 返回: {success, alreadyCheckedIn, message, data: <API JSON>}
+        api_data = browser_result.get('data')
+        if not isinstance(api_data, dict):
+            api_data = {
+                'success': browser_result.get('success'),
+                'message': browser_result.get('message'),
+            }
+
+        normalized = self._normalize_checkin_payload(api_data)
+        if browser_result.get('alreadyCheckedIn') or browser_result.get('success') or normalized['success']:
             result['success'] = True
-            result['message'] = browser_result.get('message', '今日已签到 (CF绕过)')
-        elif browser_result.get('success'):
-            result['success'] = True
-            result['message'] = browser_result.get('message', '签到成功 (CF绕过)')
-            data = browser_result.get('data', {})
-            if isinstance(data, dict):
-                checkin_data = data.get('data', data)
-                result['checkin_date'] = checkin_data.get('checkin_date')
-                result['quota_awarded'] = checkin_data.get('quota_awarded')
+            result['message'] = (
+                browser_result.get('message')
+                or normalized['message']
+                or ('今日已签到 (CF绕过)' if browser_result.get('alreadyCheckedIn') else '签到成功 (CF绕过)')
+            )
+            result['checkin_date'] = normalized['checkin_date']
+            result['quota_awarded'] = normalized['quota_awarded']
         else:
-            result['message'] = browser_result.get('message', 'CF 绕过后签到失败')
+            result['message'] = browser_result.get('message') or normalized['message'] or 'CF 绕过后签到失败'
 
         return result
 

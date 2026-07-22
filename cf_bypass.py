@@ -186,11 +186,14 @@ class CloudflareBypasser:
                 except Exception:
                     pass
 
-                checkin_result = page.evaluate('''async () => {
+                req_headers = {'Content-Type': 'application/json'}
+                if self.user_id:
+                    req_headers['new-api-user'] = str(self.user_id)
+                checkin_result = page.evaluate('''async (reqHeaders) => {
                     try {
                         const resp = await fetch('/api/user/checkin', {
                             method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
+                            headers: reqHeaders,
                             credentials: 'include'
                         });
                         const text = await resp.text();
@@ -199,7 +202,7 @@ class CloudflareBypasser:
                             const success = data.success === true || data.status === 'success' || data.ret === 1 || data.code === 0;
                             const message = data.message || data.msg || data.data || '签到完成';
                             const msgStr = typeof message === 'string' ? message : JSON.stringify(message);
-                            const alreadyKeywords = ['已签到', '已经签到', 'already', '重复签到'];
+                            const alreadyKeywords = ['已签到', '已经签到', '今日已签', '重复签到', 'already checked', 'already check-in', 'already checkin'];
                             const alreadyCheckedIn = !success && alreadyKeywords.some(k => msgStr.includes(k));
                             return {
                                 success: success || alreadyCheckedIn,
@@ -214,7 +217,7 @@ class CloudflareBypasser:
                     } catch(e) {
                         return { error: e.message, success: false, httpStatus: 0 };
                     }
-                }''')
+                }''', req_headers)
 
                 print(f'[CF 绕过] 磾到结果: {checkin_result.get("message", checkin_result.get("error", "unknown"))}')
 
