@@ -507,9 +507,31 @@ binding = "ASSETS"
 
 检查 Workers Builds 的 `Root directory` 是否为 `worker`。构建命令执行目录必须包含 `package.json` 和 `wrangler.toml`。
 
-### Worker 提示 Check 未定义
+### Worker 提示 Check 未定义 / `Cannot read properties of undefined (reading 'prepare')`
 
-进入 Worker 的 `Settings` -> `Bindings`，添加 D1 Database Binding，并将 Variable name 设置为区分大小写的 `Check`。
+原因：运行时没有 D1 绑定，`env.Check` 为 `undefined`。常见于 **Git 自动部署**：Cloudflare 以 `worker/wrangler.toml` 为准覆盖绑定，若文件中没有 `[[d1_databases]]`，Dashboard 里手绑的 `Check` 会被清掉。
+
+立即恢复：
+
+1. Worker → `Settings` → `Bindings` → Add → D1 Database
+2. Variable name 填区分大小写的 `Check`
+3. 选择你的 D1 数据库并保存，必要时在 Deployments 再部署一次当前版本
+
+长期避免再次丢失：
+
+1. Dashboard → D1 → 数据库详情里复制 Database ID
+2. 在 `worker/wrangler.toml` 取消注释并填写：
+
+```toml
+[[d1_databases]]
+binding = "Check"
+database_name = "newapi-checkin"
+database_id = "你的-database-id"
+```
+
+3. 提交推送，让自动部署带着绑定配置生效
+
+可用 `/api/health` 自检：若 `missing` 含 `Check`，说明绑定仍未注入。
 
 ### GitHub 推送后没有触发 Worker 部署
 

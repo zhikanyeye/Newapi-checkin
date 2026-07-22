@@ -279,8 +279,12 @@ Actions 日志也会直接显示：
 2. 在 `/api/user/self` 响应中找到 `data.id`。
 3. 重新添加账号并填写用户 ID。
 
-### Worker 提示 Check 未定义
+### Worker 提示 Check 未定义 / reading 'prepare'
 
-原因：D1 没有绑定到变量名 `Check`。
+原因：D1 没有绑定到变量名 `Check`，或 Git 自动部署后绑定被 `wrangler.toml` 覆盖清空。
 
-处理：Cloudflare Worker -> Settings -> Bindings -> Add -> D1 Database，Variable name 填 `Check`。
+处理：
+
+1. Worker → Settings → Bindings → 添加 D1，Variable name 必须为 `Check`
+2. 把 Database ID 写进 `worker/wrangler.toml` 的 `[[d1_databases]]`，避免下次自动部署再丢绑定
+3. 打开 `/api/health`，确认返回 `database: connected` 且 `missing` 不含 `Check`
