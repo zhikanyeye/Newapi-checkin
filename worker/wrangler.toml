@@ -10,16 +10,7 @@ binding = "ASSETS"
 [vars]
 SESSION_TTL_SECONDS = "86400"
 
-# Git 自动部署会以本文件为绑定来源。
-# 若这里没有 [[d1_databases]]，Dashboard 里手动加的 D1 绑定会在下次部署被清掉，
-# 运行时 env.Check 为 undefined，出现 Cannot read properties of undefined (reading 'prepare')。
-#
-# 操作：
-# 1. Cloudflare Dashboard → D1 → 你的数据库 → 复制 Database ID
-# 2. 取消下面注释，填入真实 database_id（database_name 可与面板中的名称一致）
-# 3. 提交并推送，或重新 Deploy
-#
-# [[d1_databases]]
-# binding = "Check"
-# database_name = "newapi-checkin"
-# database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+[[d1_databases]]
+binding = "Check"
+database_name = "newapi-checkin"
+database_id = "5e7e8358-eb3c-4d54-bd3d-ea76e8f4f8a0"
