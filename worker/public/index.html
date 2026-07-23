@@ -440,7 +440,7 @@
                       <input type="hidden" name="account_id" id="account-id">
                       <div class="form-grid">
                         <div class="field"><label for="name">备注名称</label><input id="name" name="name" placeholder="例如：主力站" required><span class="field-help">仅用于控制台区分账号，可自由填写。</span></div>
-                        <div class="field"><label for="user-id">用户 ID</label><input id="user-id" name="user_id" placeholder="一般留空"><span class="field-help">脚本会自动获取；特定站点要求时再填写。</span></div>
+                        <div class="field"><label for="user-id">用户 ID</label><input id="user-id" name="user_id" inputmode="numeric" placeholder="浏览器请求头 new-api-user 的值" required><span class="field-help">必填。F12 → Network → 任意 Fetch/XHR 请求头中复制 new-api-user。</span></div>
                         <div class="field full"><label for="url">站点地址</label><input id="url" name="url" type="url" placeholder="https://api.example.com" required><span class="field-help">填写登录站点的根地址，不包含 /console 或其他页面路径。</span></div>
                         <div class="field full"><label for="session">Session Cookie</label><input id="session" name="session" type="password" placeholder="只粘贴 session 的值" required><span class="field-help">粘贴 Cookie 中 session= 后面的值，不包含 session= 和分号。</span></div>
                         <div class="field full"><label for="clearance">cf_clearance</label><input id="clearance" name="cf_clearance" type="password" placeholder="通常留空"><span class="field-help">只有站点受 Cloudflare 挑战保护且自动回退失败时才需要。</span></div>
@@ -455,7 +455,7 @@
                             <li>找到名称为 <code>session</code> 的 Cookie，复制 Value 列完整内容。</li>
                             <li>回到本表单，只粘贴 Value；无需填写 <code>session=</code>。</li>
                           </ol>
-                          <p><strong>用户 ID：</strong>优先留空。脚本会请求 <code>/api/user/self</code> 自动获取。签到日志提示缺少 new-api-user 时，再从该接口响应的 <code>data.id</code> 填入。</p>
+                          <p><strong>用户 ID：</strong>必须填写。打开 F12 → Network，筛选 Fetch/XHR，复制请求头 <code>new-api-user</code> 的值。Session Cookie 内的内容无法可靠推导这个值。</p>
                           <p><strong>cf_clearance：</strong>获取方式与 session 相同，在 Cookies 列表复制同名 Cookie 的 Value。</p>
                         </div>
                       </details>

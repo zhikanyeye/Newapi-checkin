@@ -207,7 +207,7 @@ async function handler(request, env) {
   }
   if (method === 'POST' && path === '/api/dashboard/accounts') {
     const body = await text(request);
-    if (!body?.name || !body?.url || !body?.session || !/^https?:\/\//.test(body.url)) return json({ error: '请填写有效的名称、URL 和 Session' }, 400, env);
+    if (!body?.name || !body?.url || !body?.session || !body?.user_id || !/^https?:\/\//.test(body.url)) return json({ error: '请填写有效的名称、URL、Session 和用户 ID' }, 400, env);
     const createdAt = now();
     const secret = await encrypt(JSON.stringify({ url: body.url, session: body.session, user_id: body.user_id || undefined, cf_clearance: body.cf_clearance || undefined }), env);
     await getDb(env).prepare('INSERT INTO accounts (name, url, secret, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').bind(body.name, new URL(body.url).origin, secret, createdAt, createdAt).run();
@@ -229,12 +229,13 @@ async function handler(request, env) {
       const current = JSON.parse(await decrypt(account.secret, env));
       const nextUrl = body.url || current.url;
       if (!/^https?:\/\//.test(nextUrl)) return json({ error: 'URL 格式不正确' }, 400, env);
+      if (!body.user_id) return json({ error: '更新凭据时必须填写用户 ID' }, 400, env);
       const next = {
         ...current,
         url: nextUrl.replace(/\/$/, ''),
         session: body.session,
       };
-      if ('user_id' in body) next.user_id = body.user_id || undefined;
+      next.user_id = body.user_id;
       if ('cf_clearance' in body) next.cf_clearance = body.cf_clearance || undefined;
       const secret = await encrypt(JSON.stringify(next), env);
       await getDb(env).prepare('UPDATE accounts SET name = ?, url = ?, secret = ?, failure_count = 0, last_status = NULL, last_message = NULL, updated_at = ? WHERE id = ?')

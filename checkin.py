@@ -60,6 +60,7 @@ class NewAPICheckin:
     def __init__(self, base_url: str, session_cookie: str, user_id: str = None, cf_clearance: str = None):
         self.base_url = base_url.rstrip('/')
         self.session_cookie = session_cookie
+        self.user_id = str(user_id).strip() if user_id is not None and str(user_id).strip() else None
         self.original_cf_clearance = cf_clearance
         self.cf_bypassed = False
         self.session = requests.Session()
@@ -74,15 +75,13 @@ class NewAPICheckin:
             'Cache-Control': 'no-store',
             'Pragma': 'no-cache',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Origin': self.base_url,
+            'Referer': f'{self.base_url}/',
+            'X-Requested-With': 'XMLHttpRequest',
         })
 
-        if user_id:
-            self.user_id = user_id
-            self.session.headers.update({'new-api-user': str(user_id)})
-        else:
-            self.user_id = self._extract_user_id_from_session(session_cookie)
-            if self.user_id:
-                self.session.headers.update({'new-api-user': str(self.user_id)})
+        if self.user_id:
+            self.session.headers.update({'new-api-user': self.user_id})
 
     def _extract_user_id_from_session(self, session_cookie: str) -> Optional[str]:
         """
@@ -277,44 +276,48 @@ class NewAPICheckin:
             'quota_awarded': None
         }
 
+        if not self.user_id:
+            result['message'] = '缺少用户 ID：请在控制台填写浏览器请求头 new-api-user 的值后重试'
+            return result
+
         try:
-            resp = self.session.post(f'{self.base_url}/api/user/checkin', timeout=30)
+            # NewAPI/OneAPI 的标准签到端点是 sign_in；checkin 仅保留给旧实现。
+            for path in ('/api/user/sign_in', '/api/user/checkin'):
+                resp = self.session.post(f'{self.base_url}{path}', timeout=30)
 
-            if resp.status_code == 401:
-                result['message'] = '认证失败: Session 可能已过期，请重新获取'
-                return result
+                if resp.status_code in (404, 405) and path == '/api/user/sign_in':
+                    continue
+                if resp.status_code == 401:
+                    result['message'] = '认证失败: Session 可能已过期或用户 ID 不匹配，请重新获取'
+                    return result
 
-            try:
-                data = resp.json()
-            except json.JSONDecodeError:
-                if detect_cloudflare_block:
-                    is_blocked, reason = detect_cloudflare_block(resp.status_code, resp.text)
-                    if is_blocked:
-                        print(f'[CF] 检测到 Cloudflare 拦截: {reason}')
-                        return self._cf_bypass_checkin()
-                content_preview = resp.text[:200] if resp.text else '(空响应)'
-                result['message'] = f'响应格式错误 (HTTP {resp.status_code}): {content_preview}'
-                return result
+                try:
+                    data = resp.json()
+                except json.JSONDecodeError:
+                    if detect_cloudflare_block:
+                        is_blocked, reason = detect_cloudflare_block(resp.status_code, resp.text)
+                        if is_blocked:
+                            print(f'[CF] 签到接口被 Cloudflare 拦截: {reason}')
+                            return self._cf_bypass_checkin()
+                    content_preview = resp.text[:200] if resp.text else '(空响应)'
+                    result['message'] = f'响应格式错误 (HTTP {resp.status_code}): {content_preview}'
+                    return result
 
-            if detect_cloudflare_block and resp.status_code in (403, 503):
-                is_blocked, reason = detect_cloudflare_block(resp.status_code, json.dumps(data))
-                if is_blocked:
-                    print(f'[CF] 检测到 Cloudflare 拦截: {reason}')
-                    return self._cf_bypass_checkin()
+                if resp.status_code == 200:
+                    normalized = self._normalize_checkin_payload(data)
+                    result['success'] = normalized['success']
+                    result['message'] = normalized['message']
+                    result['checkin_date'] = normalized['checkin_date']
+                    result['quota_awarded'] = normalized['quota_awarded']
+                    return result
 
-            if resp.status_code == 200:
-                normalized = self._normalize_checkin_payload(data)
-                result['success'] = normalized['success']
-                result['message'] = normalized['message']
-                result['checkin_date'] = normalized['checkin_date']
-                result['quota_awarded'] = normalized['quota_awarded']
-            else:
                 message = data.get('message') or data.get('msg') or '未知错误'
                 if self._already_checked_in(message):
                     result['success'] = True
                     result['message'] = message
                 else:
                     result['message'] = f'HTTP {resp.status_code}: {message}'
+                return result
 
         except requests.exceptions.Timeout:
             result['message'] = '请求超时'

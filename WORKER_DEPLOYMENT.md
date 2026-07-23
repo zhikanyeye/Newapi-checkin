@@ -320,7 +320,7 @@ Cookie 原文：session=abc123xyz; Path=/; HttpOnly
 | 字段 | 必填 | 填写方式 |
 |------|------|----------|
 | 备注名称 | 是 | 自由填写，例如 `主力站` |
-| 用户 ID | 否 | 优先留空，脚本会调用 `/api/user/self` 自动获取 |
+| 用户 ID | 是 | 从浏览器 Network 请求头复制 `new-api-user` 的值 |
 | 站点地址 | 是 | 填根地址，例如 `https://api.example.com` |
 | Session Cookie | 是 | 填 `session` Cookie 的 Value |
 | cf_clearance | 否 | 通常留空，Cloudflare 回退失败时再填写 |
@@ -341,7 +341,7 @@ Cookie 原文：session=abc123xyz; Path=/; HttpOnly
 3. 页面只显示站点 Origin 和“等待首跑”状态。
 4. Session 不会通过 Dashboard API 返回浏览器。
 
-用户 ID 一般留空。Actions 日志提示缺少 `new-api-user` 时，在浏览器 Network 中打开 `/api/user/self` 请求，从响应 `data.id` 获取用户 ID 后重新录入。
+用户 ID 必须填写。在浏览器 Network 中选择任一已登录 Fetch/XHR 请求，从 Request Headers 复制 `new-api-user`。Session Cookie 无法可靠推导该值。
 
 Session 过期时，在账号行点击“更新凭据”，粘贴新的 Session 后提交。该操作会覆盖账号密文并保留历史签到记录。
 

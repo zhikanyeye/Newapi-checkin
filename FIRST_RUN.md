@@ -94,21 +94,13 @@ https://api.example.com
 
 ### 3. 用户 ID
 
-优先留空。Runner 会先调用：
+必须填写。Session Cookie 本身不能可靠推导用户 ID，签到接口通常要求请求头：
 
 ```text
-GET /api/user/self
+new-api-user: 12345
 ```
 
-接口成功后会自动读取 `data.id` 并设置 `new-api-user` 请求头。
-
-只有以下情况需要手动填写：
-
-- 站点在访问 `/api/user/self` 前就要求 `new-api-user`。
-- Session 无法自动解析用户 ID。
-- Actions 日志明确提示用户 ID 或 `new-api-user` 缺失。
-
-手动获取方式：在浏览器开发者工具的 Network 中打开 `/api/user/self` 请求，查看响应 JSON 的 `data.id`。
+获取方式：登录目标站点，打开浏览器开发者工具的 Network，筛选 Fetch/XHR，选择任一已登录 API 请求，在 Request Headers 中复制 `new-api-user` 的值。
 
 ### 4. cf_clearance
 
@@ -123,7 +115,7 @@ GET /api/user/self
 | 字段 | 必填 | 示例 | 说明 |
 |------|------|------|------|
 | 备注名称 | 是 | `主力站` | 只用于识别账号 |
-| 用户 ID | 否 | `123` | 优先留空，让脚本自动获取 |
+| 用户 ID | 是 | `12345` | 浏览器请求头 `new-api-user` 的值 |
 | 站点地址 | 是 | `https://api.example.com` | 填根地址 |
 | Session Cookie | 是 | `abc123xyz` | 只填 session 的 Value |
 | cf_clearance | 否 | `clearance-value` | Cloudflare 站点辅助 Cookie |
@@ -243,7 +235,7 @@ env:
 - “运行历史”出现刚才的执行时间。
 - 点击运行记录可以查看账号级结果。
 
-以上五项出现后，每天北京时间 8:10 会由 GitHub Actions 自动执行。
+以上五项出现后，GitHub Actions 会每天北京时间约 8:10 尝试执行一次。GitHub 的 schedule 可能延迟数十分钟。
 
 ## 常见首次配置错误
 

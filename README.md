@@ -119,7 +119,7 @@ wrangler d1 execute newapi-checkin --remote --file=./schema.sql
 
 1. 打开 Worker 根地址，用 `DASHBOARD_PASSWORD` 登录。
 2. 从 NewAPI 站点浏览器 Cookies 中复制 `session` 的 Value。
-3. 在控制台填写备注名称、站点根地址和 Session，用户 ID 与 cf_clearance 通常留空。
+3. 在控制台填写备注名称、站点根地址、Session 和浏览器请求头中的 `new-api-user`；`cf_clearance` 为可选项。
 4. 将 Worker 地址保存为 GitHub Secret `CHECKIN_WORKER_URL`。
 5. 将 Cloudflare `RUNNER_TOKEN` 的同一个值保存为 GitHub Secret `CHECKIN_RUNNER_TOKEN`。
 6. 在 GitHub Actions 中手动运行 `NewAPI 自动签到`。
@@ -141,7 +141,7 @@ wrangler d1 execute newapi-checkin --remote --file=./schema.sql
 
 ```text
 .
-├── .github/workflows/checkin.yml  # 每日签到 Runner
+├── .github/workflows/checkin.yml  # 每天执行一次签到 Runner
 ├── checkin.py                     # 签到、配置拉取和结果上报
 ├── cf_bypass.py                   # Cloudflare 检测与回退
 ├── dingtalk_notifier.py           # 可选钉钉通知
