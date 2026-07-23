@@ -63,6 +63,7 @@ class NewAPICheckin:
         self.user_id = str(user_id).strip() if user_id is not None and str(user_id).strip() else None
         self.original_cf_clearance = cf_clearance
         self.cf_bypassed = False
+        self.last_user_info_error = None
         self.session = requests.Session()
         self.session.cookies.set('session', session_cookie)
 
@@ -192,6 +193,7 @@ class NewAPICheckin:
         Args:
             verbose: 是否显示详细调试信息
         """
+        self.last_user_info_error = None
         try:
             resp = self.session.get(f'{self.base_url}/api/user/self', timeout=30)
 
@@ -201,6 +203,7 @@ class NewAPICheckin:
 
             # 检查认证失败
             if resp.status_code == 401:
+                self.last_user_info_error = 'session'
                 print(f'[错误] 认证失败 (401): Session 可能已过期')
                 if verbose:
                     print(f'  [调试] 完整响应: {resp.text[:500]}')
@@ -214,10 +217,12 @@ class NewAPICheckin:
                 if detect_cloudflare_block:
                     is_blocked, reason = detect_cloudflare_block(resp.status_code, resp.text)
                     if is_blocked:
+                        self.last_user_info_error = 'cloudflare'
                         print(f'[CF] 获取用户信息时检测到 Cloudflare 拦截: {reason}')
                         print(f'[CF] 该站点需要 CF 绕过才能访问')
                         return None
                 print(f'[错误] 响应格式错误 (HTTP {resp.status_code}): 无法解析 JSON')
+                self.last_user_info_error = 'response'
                 if verbose:
                     print(f'  [调试] 原始响应: {resp.text[:500]}')
                 return None
@@ -237,20 +242,25 @@ class NewAPICheckin:
                         })
                     return user_data
                 else:
+                    self.last_user_info_error = 'api'
                     if verbose:
                         print(f'  [调试] API 返回失败: {data.get("message", "未知错误")}')
             else:
+                self.last_user_info_error = 'http'
                 print(f'[错误] HTTP {resp.status_code}: {data.get("message", "未知错误")}')
 
             return None
 
         except requests.exceptions.Timeout:
+            self.last_user_info_error = 'network'
             print(f'[错误] 请求超时')
             return None
         except requests.exceptions.RequestException as e:
+            self.last_user_info_error = 'network'
             print(f'[错误] 网络请求失败: {e}')
             return None
         except Exception as e:
+            self.last_user_info_error = 'unknown'
             print(f'[错误] 未知错误: {e}')
             if verbose:
                 import traceback
@@ -362,7 +372,11 @@ class NewAPICheckin:
         self.cf_bypassed = True
 
         if browser_result.get('error'):
-            result['message'] = f'CF 绕过后签到失败: {browser_result["error"]}'
+            error = browser_result['error']
+            if 'Just a moment' in error or 'challenge-platform' in error or 'cf-challenge' in error:
+                result['message'] = 'Cloudflare 验证仍在进行：签到接口返回挑战页 HTML'
+            else:
+                result['message'] = f'CF 回退后签到失败: {error}'
             return result
 
         # Playwright 返回: {success, alreadyCheckedIn, message, data: <API JSON>}
@@ -680,7 +694,12 @@ def main():
             masked_username = username[:3] + '***' if len(username) > 3 else '***'
             print(f'  用户: {masked_username}')
         else:
-            print('  用户: 获取失败（可能 session 已过期）')
+            if client.last_user_info_error == 'cloudflare':
+                print('  用户: 获取失败（Cloudflare 拦截）')
+            elif client.last_user_info_error == 'session':
+                print('  用户: 获取失败（Session 已失效或用户 ID 不匹配）')
+            else:
+                print('  用户: 获取失败（用户信息接口异常）')
 
         # 执行签到
         result = client.checkin()
