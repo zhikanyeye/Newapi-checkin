@@ -12,7 +12,7 @@ function getDb(env) {
 
 function missingDbError() {
   return json({
-    error: 'D1 未绑定：自动部署后绑定可能被清空。请在 Worker Settings → Bindings 添加 D1，变量名必须为 Check；或在 worker/wrangler.toml 的 [[d1_databases]] 填入 database_id 后重新部署。',
+    error: 'D1 未绑定：请确认 Cloudflare 部署已完成自动资源配置，且 Worker Settings → Bindings 中存在名为 Check 的 D1 绑定。',
     code: 'D1_BINDING_MISSING',
   }, 503);
 }

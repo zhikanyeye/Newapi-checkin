@@ -12,5 +12,3 @@ SESSION_TTL_SECONDS = "86400"
 
 [[d1_databases]]
 binding = "Check"
-database_name = "newapi-checkin"
-database_id = "5e7e8358-eb3c-4d54-bd3d-ea76e8f4f8a0"

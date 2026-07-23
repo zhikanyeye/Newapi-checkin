@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:init:local": "wrangler d1 execute newapi-checkin --local --file=./schema.sql",
-    "db:init:remote": "wrangler d1 execute newapi-checkin --remote --file=./schema.sql"
+    "db:init:local": "wrangler d1 execute Check --local --file=./schema.sql"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

@@ -1,8 +1,18 @@
 # 首次使用：从部署完成到第一次自动签到
 
-这份指南从“Worker 已经部署成功”开始，带你完成账号录入、GitHub 连接和第一次签到。完成后，GitHub Actions 会每天自动签到，结果会回到 Worker 控制台。
+这份指南从 Worker 部署成功开始，带你完成账号录入、GitHub Actions 连接和第一次签到验收。Cloudflare 和 GitHub 的完整部署步骤见 [WORKER_DEPLOYMENT.md](WORKER_DEPLOYMENT.md)。
 
 所有网页操作都在 Worker 根地址完成。GitHub Pages 和根目录静态页面不参与签到链路。
+
+## 完成标准
+
+完成本指南后应满足以下条件：
+
+- `/api/health` 返回 `database: connected`。
+- Worker 控制台中至少有一个启用账号。
+- GitHub Actions 可以获取账号并完成签到。
+- Worker 控制台显示本次运行和账号级结果。
+- 定时工作流保持启用状态。
 
 ## 完成后的数据链路
 
@@ -90,7 +100,7 @@ https://api.example.com
 表单填写：abc123xyz
 ```
 
-请勿填写 `session=`，也不要包含末尾分号。
+表单只填写 Value，省略 `session=` 前缀和末尾分号。
 
 ### 3. 用户 ID
 
@@ -157,7 +167,7 @@ Name: CHECKIN_WORKER_URL
 Secret: https://newapi-checkin.example.workers.dev
 ```
 
-不要添加 `/api`，也不要添加末尾 `/`。
+该 Secret 使用 Worker 根地址，省略 `/api` 路径和末尾 `/`。
 
 ### Runner Token
 
@@ -184,29 +194,7 @@ GitHub Actions CHECKIN_RUNNER_TOKEN
 
 GitHub 无法读取已经保存的 Secret 原值。如果忘记了 `RUNNER_TOKEN`，生成一个新值，并同时更新 Cloudflare 与 GitHub。
 
-## 第五步：理解自动签到如何工作
-
-工作流 `.github/workflows/checkin.yml` 将 GitHub Secrets 注入环境变量：
-
-```yaml
-env:
-  CHECKIN_WORKER_URL: ${{ secrets.CHECKIN_WORKER_URL }}
-  CHECKIN_RUNNER_TOKEN: ${{ secrets.CHECKIN_RUNNER_TOKEN }}
-```
-
-`checkin.py` 随后执行：
-
-1. 请求 `GET <CHECKIN_WORKER_URL>/api/runner/config`。
-2. 请求头携带 `Authorization: Bearer <CHECKIN_RUNNER_TOKEN>`。
-3. Worker 将 Token 与 Cloudflare `RUNNER_TOKEN` 比较。
-4. Worker 从 D1 读取所有已启用账号并在内存中解密。
-5. Worker 只把账号运行配置返回给本次 Actions Runner。
-6. Runner 逐个访问 NewAPI 站点并执行签到。
-7. Runner 请求 `POST /api/runner/report` 上报脱敏结果。
-8. Worker 将运行摘要和账号结果写入 D1。
-9. 控制台查询 D1 并展示状态。
-
-## 第六步：手动执行第一次签到
+## 第五步：手动执行第一次签到
 
 1. 打开 GitHub 仓库的 `Actions` 页面。
 2. 在左侧选择 `NewAPI 自动签到`。
@@ -225,7 +213,7 @@ env:
 [Worker] 签到结果上报成功
 ```
 
-## 第七步：确认完整链路成功
+## 第六步：确认完整链路成功
 
 回到 Worker 控制台并刷新页面，检查：
 
@@ -235,7 +223,7 @@ env:
 - “运行历史”出现刚才的执行时间。
 - 点击运行记录可以查看账号级结果。
 
-以上五项出现后，GitHub Actions 会每天北京时间约 8:10 尝试执行一次。GitHub 的 schedule 可能延迟数十分钟。
+以上五项出现后，GitHub Actions 会每天北京时间约 08:10 尝试执行一次。GitHub schedule 可能出现平台级延迟。
 
 ## 常见首次配置错误
 
@@ -249,7 +237,7 @@ env:
 
 原因：控制台中没有账号，或账号已停用。
 
-处理：添加账号并确认状态不是“已停用”。
+处理：添加账号并将账号状态设置为“已启用”。
 
 Actions 日志也会直接显示：
 
@@ -273,10 +261,12 @@ Actions 日志也会直接显示：
 
 ### Worker 提示 Check 未定义 / reading 'prepare'
 
-原因：D1 没有绑定到变量名 `Check`，或 Git 自动部署后绑定被 `wrangler.toml` 覆盖清空。
+原因：Cloudflare 自动资源配置尚未完成，或当前部署没有名称为 `Check` 的 D1 Binding。
 
 处理：
 
-1. Worker → Settings → Bindings → 添加 D1，Variable name 必须为 `Check`
-2. 把 Database ID 写进 `worker/wrangler.toml` 的 `[[d1_databases]]`，避免下次自动部署再丢绑定
-3. 打开 `/api/health`，确认返回 `database: connected` 且 `missing` 不含 `Check`
+1. 打开 Worker → Settings → Bindings，确认存在自动创建的 `Check` D1 Binding。
+2. 在 Deployments 中重新运行最新的 Git 部署，让 Cloudflare 完成自动资源配置。
+3. 打开 `/api/health`，确认返回 `database: connected` 且 `missing` 不含 `Check`。
+
+已有 Worker 在部署前已经绑定 `Check` 时，Wrangler 会继续使用该 Binding 指向的原数据库，不会替换已有账号和历史数据。

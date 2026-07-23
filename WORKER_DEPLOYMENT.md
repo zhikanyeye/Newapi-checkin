@@ -8,13 +8,13 @@
 
 | 阶段 | 目标 |
 |------|------|
-| [准备环境](#2-准备条件) | 准备 Cloudflare、GitHub 和 Wrangler |
-| [创建数据库](#3-创建-d1-数据库) | 创建并初始化 D1 |
+| [准备环境](#2-准备条件) | 准备 Cloudflare 和 GitHub |
+| [自动配置数据库](#3-自动配置-d1-数据库) | 由 Cloudflare 创建并绑定 D1 |
 | [生成凭据](#4-配置-worker-环境变量绑定) | 生成三个独立安全值 |
 | [连接仓库](#5-通过-github-仓库自动部署-worker推荐) | 开启 Workers Builds |
-| [连接签到](#8-连接-github-actions) | 设置 Actions Secrets |
-| [首次联调](#9-首次联调) | 验证完整数据链路 |
-| [故障排查](#12-故障排查) | 按现象定位问题 |
+| [连接签到](#7-连接-github-actions) | 设置 Actions Secrets |
+| [首次联调](#8-首次联调) | 验证完整数据链路 |
+| [故障排查](#11-故障排查) | 按现象定位问题 |
 
 部署结束后的账号录入、Cookie 获取和第一次签到操作，可直接阅读 [`FIRST_RUN.md`](FIRST_RUN.md)。
 
@@ -44,10 +44,10 @@ graph LR
 
 - Cloudflare 账号
 - GitHub 仓库 `https://github.com/zhikanyeye/Newapi-checkin`
-- Node.js 18 或更高版本
-- Python 3.11 用于本地 Runner 测试
+- Node.js 18 或更高版本（仅本地开发需要）
+- Python 3.11（仅本地 Runner 测试需要）
 
-安装 Wrangler：
+本地开发可选安装 Wrangler：
 
 ```bash
 npm install -g wrangler
@@ -59,34 +59,34 @@ npm install -g wrangler
 wrangler login
 ```
 
-## 3. 创建 D1 数据库
+## 3. 自动配置 D1 数据库
 
-进入 Worker 目录：
+仓库中的 `worker/wrangler.toml` 只声明 D1 Binding 名称：
 
-```bash
-cd worker
+```toml
+[[d1_databases]]
+binding = "Check"
 ```
 
-创建数据库：
+通过 Cloudflare Dashboard 连接 GitHub 并首次部署时，Wrangler 自动完成以下操作：
 
-```bash
-wrangler d1 create newapi-checkin
-```
+1. 在当前 Cloudflare 账号中创建 D1 数据库。
+2. 将数据库绑定到 Worker 的 `Check` 变量。
+3. 将数据库资源 ID 保留在 Cloudflare Dashboard 中。
 
-数据库名称可以自由指定。创建完成后，先初始化数据库：
+Worker 第一次收到请求时会通过幂等 SQL 自动创建 `accounts`、`runs`、`run_results` 和 `sessions` 表。部署者无需执行 D1 创建命令、无需手工初始化 schema，也无需在 GitHub 仓库中填写 Database ID。
 
-```bash
-wrangler d1 execute newapi-checkin --remote --file=./schema.sql
-```
+`Check` 区分大小写，Worker 代码通过 `env.Check` 访问 D1。首次部署后可进入 Worker `Settings` -> `Bindings` 确认自动生成的绑定。
 
-首次 Worker 部署完成后，在 Cloudflare Dashboard 的 Worker `Settings` -> `Bindings` 中添加 D1 Database Binding：
+### 3.1 已有数据库的升级行为
 
-| 设置 | 值 |
-|------|----|
-| Variable name | `Check` |
-| D1 database | 选择刚创建的数据库 |
+Wrangler 部署前会读取当前 Worker 的远端 Bindings，并按类型与变量名进行匹配：
 
-`Check` 区分大小写，Worker 代码通过 `env.Check` 访问 D1。仓库无需保存数据库 ID。
+- 远端已有 D1 Binding `Check`：继承该 Binding 指向的原数据库，现有账号和运行历史保持原位。
+- 远端缺少 D1 Binding `Check`：创建新的 D1 数据库并绑定为 `Check`。
+- 远端使用其他变量名：该 Binding 与仓库声明不匹配，Cloudflare 会为 `Check` 配置新的资源。
+
+已有部署推送本次配置前，先在 Worker `Settings` -> `Bindings` 确认原数据库的 Variable name 为 `Check`。数据库自身的名称和 UUID 均不参与继承匹配。
 
 ## 4. 配置 Worker 环境变量绑定
 
@@ -125,26 +125,16 @@ openssl rand -hex 32
 
 推荐将 `DATA_ENCRYPTION_KEY` 安全备份。丢失该值后，D1 中保存的账号密文无法恢复。
 
-### 4.2 方式 A：Wrangler 环境绑定
+### 4.2 仓库默认变量
 
-在 `worker` 目录执行：
-
-```bash
-wrangler secret put DASHBOARD_PASSWORD
-wrangler secret put RUNNER_TOKEN
-wrangler secret put DATA_ENCRYPTION_KEY
-```
-
-每条命令会提示输入值。使用独立的长随机值，`RUNNER_TOKEN` 和 `DATA_ENCRYPTION_KEY` 建议至少 32 字节。
-
-`SESSION_TTL_SECONDS` 已在 `wrangler.toml` 的 `[vars]` 中绑定：
+`SESSION_TTL_SECONDS` 已在 `wrangler.toml` 的 `[vars]` 中声明：
 
 ```toml
 [vars]
 SESSION_TTL_SECONDS = "86400"
 ```
 
-### 4.3 方式 B：Cloudflare 控制台环境绑定
+### 4.3 Cloudflare 控制台环境绑定
 
 1. 打开 Cloudflare Dashboard。
 2. 进入 `Workers & Pages`。
@@ -173,10 +163,9 @@ Cloudflare Workers Builds 可以直接连接本仓库。连接完成后，每次
 
 Git 集成会读取仓库中的 `worker/wrangler.toml`。请先完成以下准备：
 
-1. 在 Cloudflare 创建 `newapi-checkin` D1 数据库。
-2. 初始化数据库 schema。
-3. 将代码推送到 GitHub 的 `main` 分支。
-4. 确认 `worker/package.json` 已存在。
+1. 将代码推送到 GitHub 的 `main` 分支。
+2. 确认 `worker/package.json` 和 `worker/wrangler.toml` 已存在。
+3. 确认 `wrangler.toml` 中的 `Check` Binding 未包含 `database_id`。
 
 ### 5.2 在 Cloudflare 连接 GitHub
 
@@ -225,6 +214,8 @@ Deploying newapi-checkin
 https://newapi-checkin.<你的-workers-subdomain>.workers.dev
 ```
 
+已有 Worker 的首次升级部署会继承远端 `Check` Binding。部署完成后，在 `Settings` -> `Bindings` 对照 D1 数据库名称，并访问 `/api/health` 确认连接状态。
+
 ### 5.4 配置运行时环境变量
 
 首次构建完成后，进入 Worker 的 `Settings` -> `Variables and Secrets`，添加：
@@ -236,7 +227,7 @@ https://newapi-checkin.<你的-workers-subdomain>.workers.dev
 
 保存后，在 `Deployments` 页面重新部署最新版本，或者向 `main` 分支推送一次提交。
 
-然后进入 `Settings` -> `Bindings`，将目标 D1 数据库绑定为 `Check`。
+然后进入 `Settings` -> `Bindings`，确认 Cloudflare 已自动创建 `Check` D1 Binding。
 
 这些变量属于 Worker Runtime Bindings。Cloudflare 构建过程无需读取三个敏感值，GitHub 仓库也无需保存这些值。
 
@@ -246,6 +237,8 @@ https://newapi-checkin.<你的-workers-subdomain>.workers.dev
 - Pull Request 或其他分支：可在 Workers Builds 设置中开启非生产分支构建。
 - 构建失败：Cloudflare 保留上一份成功部署的 Worker。
 - D1 数据：代码重新部署不会清除已有账号和签到历史。
+- D1 资源 ID：仅在 Cloudflare Dashboard 可见，不写回 GitHub 仓库。
+- D1 继承条件：远端 Binding 类型为 D1，变量名为区分大小写的 `Check`。
 
 ### 5.6 验证 Git 部署
 
@@ -297,57 +290,9 @@ curl https://newapi-checkin.<你的-workers-subdomain>.workers.dev/api/health
 
 浏览器直接打开 Worker 根地址。配置页面、结果看板和 API 均由同一个 Worker 域名提供，无需 GitHub Pages，也无需配置 CORS。
 
-## 7. 添加签到账号
+## 7. 连接 GitHub Actions
 
-### 7.1 从浏览器获取 Session
-
-1. 在目标 NewAPI 站点登录。
-2. 按 `F12` 打开开发者工具。
-3. 进入 `Application` -> `Storage` -> `Cookies`。
-4. 选择当前站点域名。
-5. 找到名称为 `session` 的 Cookie。
-6. 复制 `Value` 列的完整内容。
-
-只复制 Value：
-
-```text
-Cookie 原文：session=abc123xyz; Path=/; HttpOnly
-控制台填写：abc123xyz
-```
-
-### 7.2 填写控制台表单
-
-| 字段 | 必填 | 填写方式 |
-|------|------|----------|
-| 备注名称 | 是 | 自由填写，例如 `主力站` |
-| 用户 ID | 是 | 从浏览器 Network 请求头复制 `new-api-user` 的值 |
-| 站点地址 | 是 | 填根地址，例如 `https://api.example.com` |
-| Session Cookie | 是 | 填 `session` Cookie 的 Value |
-| cf_clearance | 否 | 通常留空，Cloudflare 回退失败时再填写 |
-
-站点地址不要包含控制台路径：
-
-```text
-当前页面：https://api.example.com/console/personal
-正确填写：https://api.example.com
-```
-
-### 7.3 保存后的行为
-
-点击“加密保存账号”后：
-
-1. Worker 使用 `DATA_ENCRYPTION_KEY` 加密账号运行配置。
-2. 密文写入 `Check` Binding 对应的 D1。
-3. 页面只显示站点 Origin 和“等待首跑”状态。
-4. Session 不会通过 Dashboard API 返回浏览器。
-
-用户 ID 必须填写。在浏览器 Network 中选择任一已登录 Fetch/XHR 请求，从 Request Headers 复制 `new-api-user`。Session Cookie 无法可靠推导该值。
-
-Session 过期时，在账号行点击“更新凭据”，粘贴新的 Session 后提交。该操作会覆盖账号密文并保留历史签到记录。
-
-前端只能读取账号名称、站点 Origin、启用状态和签到结果。Worker API 不会向前端返回 Session、`cf_clearance` 或加密密文。
-
-## 8. 连接 GitHub Actions
+账号字段获取和控制台录入步骤见 [FIRST_RUN.md](FIRST_RUN.md)。完成至少一个账号录入后，再连接 GitHub Actions。
 
 GitHub Actions 只需要两个必填 Secrets：
 
@@ -383,20 +328,6 @@ GitHub CHECKIN_RUNNER_TOKEN
 
 `CHECKIN_WORKER_URL` 指向部署后的 Worker，形成完整连接。
 
-具体填写示例：
-
-```text
-Cloudflare Worker 地址：https://newapi-checkin.example.workers.dev
-
-GitHub Secret 1
-Name: CHECKIN_WORKER_URL
-Secret: https://newapi-checkin.example.workers.dev
-
-GitHub Secret 2
-Name: CHECKIN_RUNNER_TOKEN
-Secret: 与 Cloudflare RUNNER_TOKEN 完全相同
-```
-
 Worker 地址使用根地址，不添加 `/api` 和末尾斜杠。
 
 ### Worker 与 GitHub 的实际调用过程
@@ -408,7 +339,7 @@ Worker 地址使用根地址，不添加 `/api` 和末尾斜杠。
 5. Runner 将脱敏结果提交到 Worker `/api/runner/report`。
 6. Worker 保存结果，控制台从 D1 查询并展示。
 
-## 9. 首次联调
+## 8. 首次联调
 
 1. 在 GitHub 仓库进入 `Actions`。
 2. 左侧选择 `NewAPI 自动签到`。
@@ -435,12 +366,12 @@ Worker 地址使用根地址，不添加 `/api` 和末尾斜杠。
 
 验收标准：账号状态不再是“等待首跑”，运行历史出现本次执行时间，并且日志包含“签到结果上报成功”。
 
-## 10. 本地联调
+## 9. 本地联调
 
 初始化本地 D1：
 
 ```bash
-wrangler d1 execute newapi-checkin --local --file=./schema.sql
+wrangler d1 execute Check --local --file=./schema.sql
 ```
 
 启动 Worker：
@@ -457,7 +388,7 @@ export CHECKIN_RUNNER_TOKEN=与_dev_vars_中_RUNNER_TOKEN_一致
 python3 ../checkin.py
 ```
 
-## 11. 更新部署
+## 10. 更新部署
 
 GitHub 自动部署模式下，将代码推送到 `main` 分支即可。手工部署模式执行：
 
@@ -468,7 +399,7 @@ wrangler deploy
 
 `DATA_ENCRYPTION_KEY` 用于解密已有账号配置。保留该值可持续读取历史账号密文。密钥轮换需要先重新录入所有账号。
 
-## 12. 故障排查
+## 11. 故障排查
 
 ### 控制台提示访问口令错误
 
@@ -485,7 +416,7 @@ wrangler deploy
 - `CHECKIN_WORKER_URL` 使用 Worker 根地址
 - Worker `/api/health` 可访问
 - 控制台中至少有一个启用账号
-- D1 schema 已在远程数据库执行
+- `/api/health` 返回 `database: connected`，Worker 已自动完成建表
 
 ### Worker 返回解密错误
 
@@ -509,29 +440,14 @@ binding = "ASSETS"
 
 ### Worker 提示 Check 未定义 / `Cannot read properties of undefined (reading 'prepare')`
 
-原因：运行时没有 D1 绑定，`env.Check` 为 `undefined`。常见于 **Git 自动部署**：Cloudflare 以 `worker/wrangler.toml` 为准覆盖绑定，若文件中没有 `[[d1_databases]]`，Dashboard 里手绑的 `Check` 会被清掉。
+原因：Cloudflare 自动资源配置尚未完成，或当前部署没有 `Check` D1 Binding。
 
-立即恢复：
+处理步骤：
 
-1. Worker → `Settings` → `Bindings` → Add → D1 Database
-2. Variable name 填区分大小写的 `Check`
-3. 选择你的 D1 数据库并保存，必要时在 Deployments 再部署一次当前版本
-
-长期避免再次丢失：
-
-1. Dashboard → D1 → 数据库详情里复制 Database ID
-2. 在 `worker/wrangler.toml` 取消注释并填写：
-
-```toml
-[[d1_databases]]
-binding = "Check"
-database_name = "newapi-checkin"
-database_id = "你的-database-id"
-```
-
-3. 提交推送，让自动部署带着绑定配置生效
-
-可用 `/api/health` 自检：若 `missing` 含 `Check`，说明绑定仍未注入。
+1. 确认仓库的 `worker/wrangler.toml` 包含只有 `binding = "Check"` 的 `[[d1_databases]]`。
+2. 在 Worker `Deployments` 页面重新运行最新 Git 部署。
+3. 打开 `Settings` -> `Bindings`，确认存在名称区分大小写的 `Check` D1 Binding。
+4. 访问 `/api/health`，确认 `database` 为 `connected` 且 `missing` 不含 `Check`。
 
 ### GitHub 推送后没有触发 Worker 部署
 
@@ -542,10 +458,12 @@ database_id = "你的-database-id"
 - Worker 的 Builds 设置是否启用自动部署
 - GitHub 提交是否已进入 `main` 分支
 
-## 13. 安全建议
+## 12. 安全建议
 
 - 为三个敏感变量使用不同的长随机值。
 - 将 GitHub 仓库设为私有可进一步减少工作流信息暴露。
 - 定期轮换 `DASHBOARD_PASSWORD` 和 `RUNNER_TOKEN`。
 - 将 Worker 自定义域名接入 Cloudflare Access 可增加身份验证层。
 - 日志和截图中避免展示 Session、Runner Token 和加密密钥。
+
+完整凭据分级、轮换流程和调试工具风险见 [SECURITY.md](SECURITY.md)。
